@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+out/
+
+# Test and coverage
+coverage/
+
+# Env files
+.env.local
+.env.*.local
+.env
+
+# Misc
+*.log
+.DS_Store
+.pnpm-store/
