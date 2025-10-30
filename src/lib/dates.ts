@@ -1,5 +1,5 @@
 import { addMinutes, endOfMonth, endOfWeek, parseISO, startOfMonth, startOfWeek } from "date-fns";
-import { formatInTimeZone, utcToZonedTime } from "date-fns-tz";
+import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 
 export function toLocalDay(
   date: Date,
@@ -7,7 +7,7 @@ export function toLocalDay(
   offsetMinutes = 0,
 ): string {
   const shifted = addMinutes(date, offsetMinutes);
-  const zoned = utcToZonedTime(shifted, timezone);
+  const zoned = toZonedTime(shifted, timezone);
   return formatInTimeZone(zoned, timezone, "yyyy-MM-dd");
 }
 

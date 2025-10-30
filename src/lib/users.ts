@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
+import { clerkClient, currentUser } from "@clerk/nextjs/server";
 
-import { clerk, currentUser } from "@/lib/auth";
+import { ApiError } from "@/lib/errors";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
 
@@ -17,7 +18,7 @@ export async function ensureUser(userId: string) {
     return existing;
   }
 
-  const clerkUser = await clerk.users.getUser(userId);
+  const clerkUser = await clerkClient().users.getUser(userId);
 
   const inserted = await db
     .insert(users)
@@ -43,5 +44,15 @@ export async function getCurrentAppUser() {
   }
 
   return ensureUser(authUser.id);
+}
+
+export async function requireCurrentAppUser() {
+  const user = await getCurrentAppUser();
+
+  if (!user) {
+    throw new ApiError(401, "Authentication required");
+  }
+
+  return user;
 }
 

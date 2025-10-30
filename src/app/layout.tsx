@@ -32,6 +32,11 @@ export default function RootLayout({
           formButtonPrimary: "bg-accent text-background",
         },
       }}
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      afterSignInUrl="/app/today"
+      afterSignUpUrl="/app/today"
+      afterSignOutUrl="/"
     >
       <html lang="en">
         <body

@@ -96,7 +96,9 @@ export const habits = pgTable(
     scheduleType: scheduleTypeEnum("schedule_type").notNull(),
     countTarget: integer("count_target"),
     perPeriod: perPeriodEnum("per_period"),
-    allowedDays: jsonb("allowed_days").default(sql`'[]'::jsonb`).notNull(),
+    allowedDays: jsonb("allowed_days")
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
     dayBoundaryOffsetMinutes: integer("day_boundary_offset_minutes")
       .default(0)
       .notNull(),
@@ -112,7 +114,7 @@ export const habits = pgTable(
   },
   (table) => ({
     userIdx: index("habits_user_idx").on(table.userId),
-  }),
+  })
 );
 
 export const habitCustomRules = pgTable(
@@ -130,7 +132,7 @@ export const habitCustomRules = pgTable(
   },
   (table) => ({
     habitIdx: index("habit_custom_rules_habit_idx").on(table.habitId),
-  }),
+  })
 );
 
 export const checkins = pgTable(
@@ -161,11 +163,11 @@ export const checkins = pgTable(
   (table) => ({
     habitByDateIdx: index("checkins_habit_date_idx").on(
       table.habitId,
-      table.occurredAt,
+      table.occurredAt
     ),
     userByDateIdx: index("checkins_user_date_idx").on(
       table.userId,
-      table.occurredAt,
+      table.occurredAt
     ),
     skipUnique: uniqueIndex("checkins_skip_unique")
       .on(table.habitId, table.localDay)
@@ -174,7 +176,7 @@ export const checkins = pgTable(
       "checkins_skip_quantity_check",
       sql`NOT (${table.isSkip} AND ${table.quantity} IS NOT NULL AND ${table.quantity} <> 0)`
     ),
-  }),
+  })
 );
 
 export const freezeTokens = pgTable(
@@ -184,8 +186,9 @@ export const freezeTokens = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    habitId: uuid("habit_id")
-      .references(() => habits.id, { onDelete: "set null" }),
+    habitId: uuid("habit_id").references(() => habits.id, {
+      onDelete: "set null",
+    }),
     coveredHabitId: uuid("covered_habit_id").references(() => habits.id, {
       onDelete: "set null",
     }),
@@ -203,7 +206,7 @@ export const freezeTokens = pgTable(
   (table) => ({
     userIdx: index("freeze_tokens_user_idx").on(table.userId),
     statusIdx: index("freeze_tokens_status_idx").on(table.status),
-  }),
+  })
 );
 
 export const streaksCache = pgTable(
@@ -226,7 +229,7 @@ export const streaksCache = pgTable(
   (table) => ({
     pk: primaryKey({ columns: [table.habitId] }),
     userIdx: index("streaks_cache_user_idx").on(table.userId),
-  }),
+  })
 );
 
 export const habitAnalyticsDaily = pgTable(
@@ -253,7 +256,7 @@ export const habitAnalyticsDaily = pgTable(
   (table) => ({
     pk: primaryKey({ columns: [table.habitId, table.date] }),
     habitIdx: index("habit_analytics_daily_habit_idx").on(table.habitId),
-  }),
+  })
 );
 
 export const eventsLog = pgTable(
@@ -277,7 +280,7 @@ export const eventsLog = pgTable(
   (table) => ({
     userIdx: index("events_log_user_idx").on(table.userId),
     typeIdx: index("events_log_type_idx").on(table.eventType),
-  }),
+  })
 );
 
 export const exportsTable = pgTable(
@@ -304,9 +307,9 @@ export const exportsTable = pgTable(
   (table) => ({
     userRequestedIdx: index("exports_user_requested_idx").on(
       table.userId,
-      table.requestedAt,
+      table.requestedAt
     ),
-  }),
+  })
 );
 
 export const userCounters = pgTable("user_counters", {
@@ -343,7 +346,7 @@ export const rateLimits = pgTable(
   },
   (table) => ({
     rateLimitPk: primaryKey({ columns: [table.userId, table.bucket] }),
-  }),
+  })
 );
 
 export const jobs = pgTable(
@@ -372,6 +375,5 @@ export const jobs = pgTable(
   (table) => ({
     statusIdx: index("jobs_status_idx").on(table.status),
     typeIdx: index("jobs_type_idx").on(table.type),
-  }),
+  })
 );
-

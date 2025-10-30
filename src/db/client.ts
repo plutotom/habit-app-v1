@@ -19,4 +19,3 @@ const neonClient = neon(connectionString, {
 
 export const db = drizzle(neonClient, { schema });
 export { schema };
-
