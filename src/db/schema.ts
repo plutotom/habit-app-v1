@@ -14,6 +14,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
 export const trackTypeEnum = pgEnum("track_type", [
@@ -377,3 +378,118 @@ export const jobs = pgTable(
     typeIdx: index("jobs_type_idx").on(table.type),
   })
 );
+
+// Relations - Required for Drizzle ORM query API with joins
+export const usersRelations = relations(users, ({ many }) => ({
+  habits: many(habits),
+  checkins: many(checkins),
+  freezeTokens: many(freezeTokens),
+  eventsLog: many(eventsLog),
+  exports: many(exportsTable),
+  userCounters: many(userCounters),
+  rateLimits: many(rateLimits),
+  streaksCache: many(streaksCache),
+  habitAnalyticsDaily: many(habitAnalyticsDaily),
+}));
+
+export const habitsRelations = relations(habits, ({ one, many }) => ({
+  user: one(users, {
+    fields: [habits.userId],
+    references: [users.id],
+  }),
+  customRules: many(habitCustomRules),
+  checkins: many(checkins),
+  freezeTokens: many(freezeTokens),
+  streaksCache: one(streaksCache, {
+    fields: [habits.id],
+    references: [streaksCache.habitId],
+  }),
+  analyticsDaily: many(habitAnalyticsDaily),
+  coveredFreezeTokens: many(freezeTokens, {
+    relationName: "coveredHabit",
+  }),
+}));
+
+export const habitCustomRulesRelations = relations(habitCustomRules, ({ one }) => ({
+  habit: one(habits, {
+    fields: [habitCustomRules.habitId],
+    references: [habits.id],
+  }),
+}));
+
+export const checkinsRelations = relations(checkins, ({ one }) => ({
+  habit: one(habits, {
+    fields: [checkins.habitId],
+    references: [habits.id],
+  }),
+  user: one(users, {
+    fields: [checkins.userId],
+    references: [users.id],
+  }),
+}));
+
+export const freezeTokensRelations = relations(freezeTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [freezeTokens.userId],
+    references: [users.id],
+  }),
+  habit: one(habits, {
+    fields: [freezeTokens.habitId],
+    references: [habits.id],
+  }),
+  coveredHabit: one(habits, {
+    relationName: "coveredHabit",
+    fields: [freezeTokens.coveredHabitId],
+    references: [habits.id],
+  }),
+}));
+
+export const streaksCacheRelations = relations(streaksCache, ({ one }) => ({
+  habit: one(habits, {
+    fields: [streaksCache.habitId],
+    references: [habits.id],
+  }),
+  user: one(users, {
+    fields: [streaksCache.userId],
+    references: [users.id],
+  }),
+}));
+
+export const habitAnalyticsDailyRelations = relations(habitAnalyticsDaily, ({ one }) => ({
+  habit: one(habits, {
+    fields: [habitAnalyticsDaily.habitId],
+    references: [habits.id],
+  }),
+  user: one(users, {
+    fields: [habitAnalyticsDaily.userId],
+    references: [users.id],
+  }),
+}));
+
+export const eventsLogRelations = relations(eventsLog, ({ one }) => ({
+  user: one(users, {
+    fields: [eventsLog.userId],
+    references: [users.id],
+  }),
+}));
+
+export const exportsRelations = relations(exportsTable, ({ one }) => ({
+  user: one(users, {
+    fields: [exportsTable.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userCountersRelations = relations(userCounters, ({ one }) => ({
+  user: one(users, {
+    fields: [userCounters.userId],
+    references: [users.id],
+  }),
+}));
+
+export const rateLimitsRelations = relations(rateLimits, ({ one }) => ({
+  user: one(users, {
+    fields: [rateLimits.userId],
+    references: [users.id],
+  }),
+}));

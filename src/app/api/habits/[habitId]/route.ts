@@ -9,13 +9,14 @@ import { requireCurrentAppUser } from "@/lib/users";
 import { habitUpdateSchema } from "@/lib/validators";
 import { eq } from "drizzle-orm";
 
-type Params = { params: { habitId: string } };
+type Params = { params: Promise<{ habitId: string }> };
 
 export async function GET(request: Request, { params }: Params) {
   const requestId = getRequestId(request);
   try {
     const user = await requireCurrentAppUser();
-    const habit = await getHabitOrThrow(params.habitId, user.id);
+    const { habitId } = await params;
+    const habit = await getHabitOrThrow(habitId, user.id);
     const streak = await db.query.streaksCache.findFirst({
       where: eq(streaksCache.habitId, habit.id),
     });
@@ -32,7 +33,8 @@ export async function PATCH(request: Request, { params }: Params) {
     const user = await requireCurrentAppUser();
     const body = await request.json();
     const payload = habitUpdateSchema.parse(body);
-    const habit = await updateHabit(params.habitId, user.id, payload);
+    const { habitId } = await params;
+    const habit = await updateHabit(habitId, user.id, payload);
     const streak = await db.query.streaksCache.findFirst({
       where: eq(streaksCache.habitId, habit.id),
     });

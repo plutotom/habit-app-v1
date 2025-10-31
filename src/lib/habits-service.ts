@@ -61,6 +61,9 @@ export async function createHabit(userId: string, input: HabitCreateInput) {
 export async function getHabitOrThrow(habitId: string, userId: string) {
   const habit = await db.query.habits.findFirst({
     where: and(eq(habits.id, habitId), eq(habits.userId, userId)),
+    with: {
+      streaksCache: true,
+    },
   });
 
   if (!habit) {
@@ -169,7 +172,7 @@ export async function createCheckin({
       userId: user.id,
       occurredAt,
       localDay,
-      quantity: quantity ?? null,
+      quantity: quantity !== undefined ? String(quantity) : null,
       note: note ?? null,
       source: source ?? "manual",
       isSkip: false,
@@ -277,8 +280,8 @@ async function upsertDailyAnalytics({
       date: localDay,
       completions: Math.round(completions),
       target,
-      completionRate,
-      strengthScore,
+      completionRate: String(completionRate),
+      strengthScore: String(strengthScore),
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
@@ -286,8 +289,8 @@ async function upsertDailyAnalytics({
       set: {
         completions: Math.round(completions),
         target,
-        completionRate,
-        strengthScore,
+        completionRate: String(completionRate),
+        strengthScore: String(strengthScore),
         updatedAt: new Date(),
       },
     });
@@ -353,7 +356,7 @@ async function recomputeStreaks({
     successDays.set(key, entry);
   }
 
-  const freezeSet = new Set(freezeDays.map((row) => row.day ?? undefined).filter(Boolean));
+  const freezeSet = new Set(freezeDays.map((row) => row.day).filter((day): day is string => Boolean(day)));
   const allowedDays =
     Array.isArray(habit.allowedDays) && habit.allowedDays.length > 0
       ? (habit.allowedDays as string[])

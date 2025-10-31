@@ -5,13 +5,14 @@ import { ApiError, jsonError } from "@/lib/errors";
 import { getRequestId, logInfo } from "@/lib/log";
 import { requireCurrentAppUser } from "@/lib/users";
 
-type Params = { params: { habitId: string } };
+type Params = { params: Promise<{ habitId: string }> };
 
 export async function GET(request: Request, { params }: Params) {
   const requestId = getRequestId(request);
   try {
     const user = await requireCurrentAppUser();
-    await getHabitOrThrow(params.habitId, user.id);
+    const { habitId } = await params;
+    await getHabitOrThrow(habitId, user.id);
     const url = new URL(request.url);
     const start = url.searchParams.get("start");
     const end = url.searchParams.get("end");
@@ -21,7 +22,7 @@ export async function GET(request: Request, { params }: Params) {
     }
 
     const analytics = await getHabitAnalyticsRange({
-      habitId: params.habitId,
+      habitId,
       userId: user.id,
       start,
       end,
@@ -29,7 +30,7 @@ export async function GET(request: Request, { params }: Params) {
     logInfo("analytics.daily", {
       requestId,
       userId: user.id,
-      habitId: params.habitId,
+      habitId,
       count: analytics.length,
     });
 

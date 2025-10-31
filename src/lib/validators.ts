@@ -42,7 +42,7 @@ export const freezeActivateSchema = z.object({
 export const profileUpdateSchema = z.object({
   timezone: z.string().min(1).optional(),
   weekStart: z.enum(["mon", "sun"]).optional(),
-  preferences: z.record(z.any()).optional(),
+  preferences: z.record(z.string(), z.any()).optional(),
 });
 
 export const analyticsQuerySchema = z.object({

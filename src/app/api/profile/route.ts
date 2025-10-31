@@ -31,7 +31,6 @@ export async function PATCH(request: Request) {
         timezone: payload.timezone ?? user.timezone,
         weekStart: payload.weekStart ?? user.weekStart,
         preferences: payload.preferences ?? user.preferences,
-        updatedAt: new Date(),
       })
       .where(eq(users.id, user.id));
 

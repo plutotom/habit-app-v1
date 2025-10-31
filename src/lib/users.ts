@@ -18,14 +18,23 @@ export async function ensureUser(userId: string) {
     return existing;
   }
 
-  const clerkUser = await clerkClient().users.getUser(userId);
+  const client = await clerkClient();
+  
+  if (!client?.users) {
+    throw new ApiError(
+      500,
+      'Clerk client not properly initialized. Ensure CLERK_SECRET_KEY is set in your environment variables.'
+    );
+  }
+  
+  const clerkUser = await client.users.getUser(userId);
 
   const inserted = await db
     .insert(users)
     .values({
       clerkUserId: userId,
       email: clerkUser.emailAddresses[0]?.emailAddress ?? null,
-      timezone: clerkUser.timezone ?? "UTC",
+      timezone: "UTC",
       preferences: {},
       weekStart: "mon",
     })

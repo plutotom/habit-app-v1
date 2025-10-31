@@ -15,11 +15,12 @@ import { assertRateLimit } from "@/lib/rate-limit";
 import { requireCurrentAppUser } from "@/lib/users";
 import { format, subDays } from "date-fns";
 
-type Params = { params: { habitId: string } };
+type Params = { params: Promise<{ habitId: string }> };
 
 export default async function HabitDetailPage({ params }: Params) {
+  const { habitId } = await params;
   const user = await requireCurrentAppUser();
-  const habit = await getHabitOrThrowSafe(params.habitId, user.id);
+  const habit = await getHabitOrThrowSafe(habitId, user.id);
 
   const today = new Date();
   const start = format(subDays(today, 13), "yyyy-MM-dd");
@@ -43,7 +44,8 @@ export default async function HabitDetailPage({ params }: Params) {
     }
     const note = String(formData.get("note") ?? "");
     const userInner = await requireCurrentAppUser();
-    const habitInner = await getHabitOrThrowSafe(params.habitId, userInner.id);
+    const { habitId: habitIdInner } = await params;
+    const habitInner = await getHabitOrThrowSafe(habitIdInner, userInner.id);
 
     await assertRateLimit({
       userId: userInner.id,
@@ -66,7 +68,7 @@ export default async function HabitDetailPage({ params }: Params) {
       payload: { habitId: habitInner.id, checkinId: checkin.id },
     });
 
-    revalidatePath(`/app/habits/${habitInner.id}`);
+    revalidatePath(`/app/habits/${habitIdInner}`);
   };
 
   const createSkipAction = async (formData: FormData) => {
@@ -79,7 +81,8 @@ export default async function HabitDetailPage({ params }: Params) {
     const localDay = String(localDayRaw);
     const note = String(formData.get("note") ?? "");
     const userInner = await requireCurrentAppUser();
-    const habitInner = await getHabitOrThrowSafe(params.habitId, userInner.id);
+    const { habitId: habitIdInner } = await params;
+    const habitInner = await getHabitOrThrowSafe(habitIdInner, userInner.id);
 
     await assertRateLimit({
       userId: userInner.id,
@@ -101,7 +104,7 @@ export default async function HabitDetailPage({ params }: Params) {
       payload: { habitId: habitInner.id, checkinId: skip.id },
     });
 
-    revalidatePath(`/app/habits/${habitInner.id}`);
+    revalidatePath(`/app/habits/${habitIdInner}`);
   };
 
   return (
@@ -142,7 +145,7 @@ export default async function HabitDetailPage({ params }: Params) {
                 name="quantity"
                 min={0}
                 step={habit.trackType === "count" ? 1 : 5}
-                defaultValue={habit.trackType === "binary" ? 1 : habit.countTarget ?? 1}
+                defaultValue={habit.countTarget ?? 1}
                 className="rounded-lg border border-border bg-surface px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </label>
@@ -236,7 +239,7 @@ export default async function HabitDetailPage({ params }: Params) {
               >
                 <span>{row.date}</span>
                 <span>
-                  {row.completions}/{row.target ?? 0} · {Math.round((row.completionRate ?? 0) * 100)}% · Strength {Number(row.strengthScore ?? 0).toFixed(1)}
+                  {row.completions}/{row.target ?? 0} · {Math.round((Number(row.completionRate ?? 0)) * 100)}% · Strength {Number(row.strengthScore ?? 0).toFixed(1)}
                 </span>
               </div>
             ))

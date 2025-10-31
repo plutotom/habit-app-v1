@@ -9,13 +9,14 @@ import { assertRateLimit } from "@/lib/rate-limit";
 import { requireCurrentAppUser } from "@/lib/users";
 import { checkinCreateSchema } from "@/lib/validators";
 
-type Params = { params: { habitId: string } };
+type Params = { params: Promise<{ habitId: string }> };
 
 export async function GET(request: Request, { params }: Params) {
   const requestId = getRequestId(request);
   try {
     const user = await requireCurrentAppUser();
-    const habit = await getHabitOrThrow(params.habitId, user.id);
+    const { habitId } = await params;
+    const habit = await getHabitOrThrow(habitId, user.id);
     const url = new URL(request.url);
     const start = url.searchParams.get("start") ?? undefined;
     const end = url.searchParams.get("end") ?? undefined;
@@ -32,7 +33,8 @@ export async function POST(request: Request, { params }: Params) {
   const requestId = getRequestId(request);
   try {
     const user = await requireCurrentAppUser();
-    const habit = await getHabitOrThrow(params.habitId, user.id);
+    const { habitId } = await params;
+    const habit = await getHabitOrThrow(habitId, user.id);
     const body = await request.json();
     const payload = checkinCreateSchema.parse(body);
 

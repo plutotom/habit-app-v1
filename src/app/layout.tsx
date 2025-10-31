@@ -27,7 +27,6 @@ export default function RootLayout({
   return (
     <ClerkProvider
       appearance={{
-        baseTheme: "dark",
         elements: {
           formButtonPrimary: "bg-accent text-background",
         },

@@ -78,7 +78,7 @@ export default async function AnalyticsPage() {
                   >
                     <span>{row.date}</span>
                     <span>
-                      {row.completions}/{row.target ?? 0} · {Math.round((row.completionRate ?? 0) * 100)}% · {Number(row.strengthScore ?? 0).toFixed(1)}
+                      {row.completions}/{row.target ?? 0} · {Math.round((Number(row.completionRate ?? 0)) * 100)}% · {Number(row.strengthScore ?? 0).toFixed(1)}
                     </span>
                   </div>
                 ))}

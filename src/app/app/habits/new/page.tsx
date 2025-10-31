@@ -54,7 +54,7 @@ export default function NewHabitPage() {
 
     const habit = await createHabit(user.id, payload);
     revalidatePath("/app/today");
-    redirect(`/app/habits/${habit.id}`);
+    redirect("/app/today");
   };
 
   return (

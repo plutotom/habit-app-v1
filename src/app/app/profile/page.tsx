@@ -25,7 +25,6 @@ export default async function ProfilePage() {
       .set({
         timezone: payload.timezone ?? current.timezone,
         weekStart: payload.weekStart ?? current.weekStart,
-        updatedAt: new Date(),
       })
       .where(eq(users.id, current.id));
 

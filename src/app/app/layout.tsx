@@ -35,7 +35,7 @@ export default async function AppLayout({
                 {link.label}
               </Link>
             ))}
-            <UserButton appearance={{ baseTheme: "dark" }} />
+            <UserButton />
           </nav>
         </div>
       </header>
