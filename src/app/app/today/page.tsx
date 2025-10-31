@@ -1,4 +1,5 @@
 import Link from "next/link";
+import LoadingLinkCard from "@/components/ui/LoadingLinkCard";
 
 import { db } from "@/db/client";
 import { checkins } from "@/db/schema";
@@ -75,10 +76,11 @@ export default async function TodayPage() {
 
       <section className="grid gap-4 md:grid-cols-2">
         {cards.map(({ habit, localDay, progress, completions, target, streak }) => (
-          <Link
+          <LoadingLinkCard
             key={habit.id}
             href={`/app/habits/${habit.id}`}
             className="group flex flex-col gap-4 rounded-2xl border border-border bg-card/70 p-6 transition hover:border-accent hover:shadow-lg hover:shadow-black/30"
+            overlayLabel="Opening habit"
           >
             <div className="flex items-center justify-between">
               <div>
@@ -108,7 +110,7 @@ export default async function TodayPage() {
                 style={{ width: `${Math.min(progress, 1) * 100}%` }}
               />
             </div>
-          </Link>
+          </LoadingLinkCard>
         ))}
       </section>
 

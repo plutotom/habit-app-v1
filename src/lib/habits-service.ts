@@ -148,7 +148,7 @@ export async function createCheckin({
 
   if (habit.trackType === "binary") {
     const existing = await db
-      .select({ id: checkins.id })
+      .select()
       .from(checkins)
       .where(
         and(
@@ -161,7 +161,8 @@ export async function createCheckin({
       .limit(1);
 
     if (existing.length) {
-      throw new ApiError(409, "Binary habit already has a completion for this day");
+      // Idempotent: return existing completion instead of throwing
+      return existing[0];
     }
   }
 
@@ -195,6 +196,24 @@ export async function createSkip({
   localDay: string;
   note?: string;
 }) {
+  // If a skip already exists for this habit and day, return it (avoid unique violation)
+  const existing = await db
+    .select()
+    .from(checkins)
+    .where(
+      and(
+        eq(checkins.habitId, habit.id),
+        eq(checkins.userId, user.id),
+        eq(checkins.localDay, localDay),
+        eq(checkins.isSkip, true),
+      ),
+    )
+    .limit(1);
+
+  if (existing.length) {
+    return existing[0];
+  }
+
   const [record] = await db
     .insert(checkins)
     .values({
@@ -207,11 +226,31 @@ export async function createSkip({
       source: "manual",
       isSkip: true,
     })
+    .onConflictDoNothing()
     .returning();
+
+  if (!record) {
+    // In case of a race, fetch the existing row created by another request
+    const [conflicted] = await db
+      .select()
+      .from(checkins)
+      .where(
+        and(
+          eq(checkins.habitId, habit.id),
+          eq(checkins.userId, user.id),
+          eq(checkins.localDay, localDay),
+          eq(checkins.isSkip, true),
+        ),
+      )
+      .limit(1);
+    if (conflicted) {
+      return conflicted;
+    }
+  }
 
   await recomputeStreaksAndAnalytics({ habit, user, localDay });
 
-  return record;
+  return record!;
 }
 
 export async function recomputeStreaksAndAnalytics({
@@ -547,5 +586,9 @@ export async function getHabitAnalyticsRange({
     .orderBy(asc(habitAnalyticsDaily.date));
 
   return rows;
+}
+
+export async function deleteHabit(habitId: string, userId: string) {
+  await db.delete(habits).where(and(eq(habits.id, habitId), eq(habits.userId, userId)));
 }
 

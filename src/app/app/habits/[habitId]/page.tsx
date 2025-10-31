@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
@@ -10,10 +11,13 @@ import {
   getHabitAnalyticsRange,
   getHabitOrThrow,
   listCheckins,
+  deleteHabit,
 } from "@/lib/habits-service";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { requireCurrentAppUser } from "@/lib/users";
 import { format, subDays } from "date-fns";
+import SubmitButton from "@/components/ui/SubmitButton";
+import ConfirmSubmit from "@/components/forms/ConfirmSubmit";
 
 type Params = { params: Promise<{ habitId: string }> };
 
@@ -107,6 +111,23 @@ export default async function HabitDetailPage({ params }: Params) {
     revalidatePath(`/app/habits/${habitIdInner}`);
   };
 
+  const deleteHabitAction = async () => {
+    "use server";
+
+    const userInner = await requireCurrentAppUser();
+    const { habitId: habitIdInner } = await params;
+
+    await db.insert(eventsLog).values({
+      userId: userInner.id,
+      eventType: "habit_deleted",
+      payload: { habitId: habitIdInner },
+    });
+
+    await deleteHabit(habitIdInner, userInner.id);
+    revalidatePath("/app/today");
+    redirect("/app/today");
+  };
+
   return (
     <div className="space-y-8">
       <section className="rounded-2xl border border-border bg-card/70 p-6">
@@ -117,20 +138,46 @@ export default async function HabitDetailPage({ params }: Params) {
               <p className="text-sm text-muted">{habit.description}</p>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-2 text-xs">
-            <span className="rounded-full bg-surface px-3 py-1 text-muted">
-              Track type: {habit.trackType}
-            </span>
-            <span className="rounded-full bg-surface px-3 py-1 text-muted">
-              Schedule: {habit.scheduleType}
-            </span>
-            <span className="rounded-full bg-surface px-3 py-1 text-muted">
-              Streak: {habit.streaksCache?.currentStreak ?? 0}
-            </span>
-            <span className="rounded-full bg-surface px-3 py-1 text-muted">
-              Longest: {habit.streaksCache?.longestStreak ?? 0}
-            </span>
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/app/habits/${habit.id}/edit`
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-accent hover:text-accent"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="currentColor"/>
+                <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="currentColor"/>
+              </svg>
+              Edit
+            </Link>
+            <ConfirmSubmit
+              action={deleteHabitAction}
+              message="Delete this habit? This action cannot be undone."
+              pendingText="Deleting..."
+              variant="danger"
+            >
+              <span className="inline-flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                  <path d="M6 7h12M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m-9 0l1 12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Delete
+              </span>
+            </ConfirmSubmit>
           </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          <span className="rounded-full bg-surface px-3 py-1 text-muted">
+            Track type: {habit.trackType}
+          </span>
+          <span className="rounded-full bg-surface px-3 py-1 text-muted">
+            Schedule: {habit.scheduleType}
+          </span>
+          <span className="rounded-full bg-surface px-3 py-1 text-muted">
+            Streak: {habit.streaksCache?.currentStreak ?? 0}
+          </span>
+          <span className="rounded-full bg-surface px-3 py-1 text-muted">
+            Longest: {habit.streaksCache?.longestStreak ?? 0}
+          </span>
         </div>
       </section>
 
@@ -159,12 +206,9 @@ export default async function HabitDetailPage({ params }: Params) {
               className="rounded-lg border border-border bg-surface px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </label>
-          <button
-            type="submit"
-            className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-background transition hover:opacity-90"
-          >
+          <SubmitButton variant="primary" pendingText="Saving...">
             Save check-in
-          </button>
+          </SubmitButton>
         </form>
 
         <form action={createSkipAction} className="flex flex-col gap-4 rounded-2xl border border-border bg-card/70 p-6">
@@ -187,17 +231,16 @@ export default async function HabitDetailPage({ params }: Params) {
               className="rounded-lg border border-border bg-surface px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </label>
-          <button
-            type="submit"
-            className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-accent hover:text-accent"
-          >
+          <SubmitButton variant="secondary" pendingText="Creating...">
             Create skip
-          </button>
+          </SubmitButton>
           <p className="text-xs text-muted">
             Skip records allow you to protect streaks on planned off days.
           </p>
         </form>
       </section>
+
+      
 
       <section className="rounded-2xl border border-border bg-card/70 p-6">
         <h2 className="text-lg font-semibold">Check-in history</h2>
