@@ -7,7 +7,7 @@ import { toLocalDay } from "@/lib/dates";
 import { grantFreezeTokensIfEligible } from "@/lib/freeze";
 import { computeCompletions, listHabits } from "@/lib/habits-service";
 import { requireCurrentAppUser } from "@/lib/users";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 
 export default async function TodayPage() {
   const user = await requireCurrentAppUser();
@@ -15,40 +15,39 @@ export default async function TodayPage() {
   const habits = await listHabits(user.id);
   const now = new Date();
 
-  const cards = await Promise.all(
-    habits.map(async (habit) => {
-      const localDay = toLocalDay(now, user.timezone, habit.dayBoundaryOffsetMinutes ?? 0);
-      const todayCheckins = await db
-        .select()
-        .from(checkins)
-        .where(
-          and(
-            eq(checkins.habitId, habit.id),
-            eq(checkins.userId, user.id),
-            eq(checkins.localDay, localDay),
-            eq(checkins.isSkip, false),
-          ),
-        );
+  // Batch fetch: compute each habit's local day, then query all pairs in one go
+  const habitLocalPairs = habits.map((habit) => ({
+    habit,
+    localDay: toLocalDay(now, user.timezone, habit.dayBoundaryOffsetMinutes ?? 0),
+  }));
 
-      const completions = computeCompletions(
-        habit.trackType,
-        todayCheckins,
-        habit.countTarget,
-      );
-      const target = habit.trackType === "binary" ? 1 : habit.countTarget ?? 1;
-      const progress = target > 0 ? Math.min(1, completions / target) : 0;
-      const streak = habit.streaksCache?.currentStreak ?? 0;
+  let todayRows: typeof checkins.$inferSelect[] = [];
+  if (habitLocalPairs.length > 0) {
+    const pairConditions = habitLocalPairs.map(({ habit, localDay }) =>
+      and(eq(checkins.habitId, habit.id), eq(checkins.localDay, localDay)),
+    );
+    todayRows = await db
+      .select()
+      .from(checkins)
+      .where(and(eq(checkins.userId, user.id), eq(checkins.isSkip, false), or(...pairConditions)));
+  }
 
-      return {
-        habit,
-        localDay,
-        progress,
-        completions,
-        target,
-        streak,
-      };
-    }),
-  );
+  const rowsByHabitId = new Map<string, typeof checkins.$inferSelect[]>();
+  for (const row of todayRows) {
+    const list = rowsByHabitId.get(row.habitId) ?? [];
+    list.push(row);
+    rowsByHabitId.set(row.habitId, list);
+  }
+
+  const cards = habitLocalPairs.map(({ habit, localDay }) => {
+    const rows = (rowsByHabitId.get(habit.id) ?? []).filter((r) => r.localDay === localDay);
+    const completions = computeCompletions(habit.trackType, rows, habit.countTarget);
+    const target = habit.trackType === "binary" ? 1 : habit.countTarget ?? 1;
+    const progress = target > 0 ? Math.min(1, completions / target) : 0;
+    const streak = habit.streaksCache?.currentStreak ?? 0;
+
+    return { habit, localDay, progress, completions, target, streak };
+  });
 
   return (
     <div className="space-y-8">

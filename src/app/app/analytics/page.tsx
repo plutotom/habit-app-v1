@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getHabitAnalyticsRange, listHabits } from "@/lib/habits-service";
 import { requireCurrentAppUser } from "@/lib/users";
 import { format, subDays } from "date-fns";
+import ContributionHeatmap from "@/components/analytics/ContributionHeatmap";
 
 export default async function AnalyticsPage() {
   const user = await requireCurrentAppUser();
@@ -70,18 +71,12 @@ export default async function AnalyticsPage() {
                   </span>
                 </div>
               </div>
-              <div className="mt-4 grid gap-2 text-xs text-muted md:grid-cols-2">
-                {data.map((row) => (
-                  <div
-                    key={row.date}
-                    className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3"
-                  >
-                    <span>{row.date}</span>
-                    <span>
-                      {row.completions}/{row.target ?? 0} · {Math.round((Number(row.completionRate ?? 0)) * 100)}% · {Number(row.strengthScore ?? 0).toFixed(1)}
-                    </span>
-                  </div>
-                ))}
+              <div className="mt-4">
+                <ContributionHeatmap
+                  start={start}
+                  end={end}
+                  days={data.map((row) => ({ date: row.date, completionRate: Number(row.completionRate ?? 0) }))}
+                />
               </div>
             </div>
           ))

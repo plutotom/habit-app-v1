@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 
 import { db } from "@/db/client";
-import { eventsLog } from "@/db/schema";
+import { eventsLog, checkins } from "@/db/schema";
 import {
   createCheckin,
   createSkip,
@@ -18,6 +18,11 @@ import { requireCurrentAppUser } from "@/lib/users";
 import { format, subDays } from "date-fns";
 import SubmitButton from "@/components/ui/SubmitButton";
 import ConfirmSubmit from "@/components/forms/ConfirmSubmit";
+import CheckinControls from "@/components/habits/CheckinControls";
+import { toLocalDay } from "@/lib/dates";
+import { and, eq } from "drizzle-orm";
+import WeeklyProgressBars from "@/components/habits/WeeklyProgressBars";
+import { startOfWeek, addDays as addDaysFn } from "date-fns";
 
 type Params = { params: Promise<{ habitId: string }> };
 
@@ -36,6 +41,30 @@ export default async function HabitDetailPage({ params }: Params) {
     userId: user.id,
     start,
     end,
+  });
+
+  const localDayNow = toLocalDay(today, user.timezone, habit.dayBoundaryOffsetMinutes ?? 0);
+  const todayNonSkip = await db
+    .select({ id: checkins.id })
+    .from(checkins)
+    .where(
+      and(
+        eq(checkins.habitId, habit.id),
+        eq(checkins.userId, user.id),
+        eq(checkins.localDay, localDayNow),
+        eq(checkins.isSkip, false),
+      ),
+    );
+  const completedToday = habit.trackType === "binary" ? todayNonSkip.length > 0 : false;
+
+  // Weekly progress bars: compute Sunday..Saturday of current week
+  const weekStart = startOfWeek(today, { weekStartsOn: 0 });
+  const dayLabels = ["S", "M", "T", "W", "T", "F", "S"];
+  const rateByDate = new Map(analytics.map((r) => [r.date, Number(r.completionRate ?? 0)]));
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = addDaysFn(weekStart, i);
+    const key = format(d, "yyyy-MM-dd");
+    return { label: dayLabels[i], rate: rateByDate.get(key) ?? 0 };
   });
 
   const logCheckin = async (formData: FormData) => {
@@ -182,34 +211,15 @@ export default async function HabitDetailPage({ params }: Params) {
       </section>
 
       <section className="grid gap-6 md:grid-cols-[2fr,1fr]">
-        <form action={logCheckin} className="flex flex-col gap-4 rounded-2xl border border-border bg-card/70 p-6">
-          <h2 className="text-lg font-semibold">Log check-in</h2>
-          {habit.trackType !== "binary" ? (
-            <label className="flex flex-col gap-2 text-sm">
-              Quantity
-              <input
-                type="number"
-                name="quantity"
-                min={0}
-                step={habit.trackType === "count" ? 1 : 5}
-                defaultValue={habit.countTarget ?? 1}
-                className="rounded-lg border border-border bg-surface px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            </label>
-          ) : null}
-          <label className="flex flex-col gap-2 text-sm">
-            Note
-            <textarea
-              name="note"
-              rows={3}
-              placeholder="Optional context"
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-            />
-          </label>
-          <SubmitButton variant="primary" pendingText="Saving...">
-            Save check-in
-          </SubmitButton>
-        </form>
+        <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card/70 p-6">
+          <h2 className="text-lg font-semibold">Quick check-in</h2>
+          <CheckinControls
+            action={logCheckin}
+            trackType={habit.trackType as any}
+            completedToday={completedToday}
+            defaultQuantity={habit.countTarget ?? 1}
+          />
+        </div>
 
         <form action={createSkipAction} className="flex flex-col gap-4 rounded-2xl border border-border bg-card/70 p-6">
           <h2 className="text-lg font-semibold">Mark skip</h2>
@@ -238,6 +248,13 @@ export default async function HabitDetailPage({ params }: Params) {
             Skip records allow you to protect streaks on planned off days.
           </p>
         </form>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card/70 p-6">
+        <h2 className="text-lg font-semibold">This week</h2>
+        <div className="mt-4">
+          <WeeklyProgressBars days={weekDays} />
+        </div>
       </section>
 
       

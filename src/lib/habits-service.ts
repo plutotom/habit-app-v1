@@ -1,6 +1,7 @@
 import { addDays, eachDayOfInterval, format } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+import { unstable_cache } from "next/cache";
 
 import { db } from "@/db/client";
 import {
@@ -12,6 +13,7 @@ import {
   users,
 } from "@/db/schema";
 import { toLocalDay } from "@/lib/dates";
+import { tagHabitAnalytics, tagHabitDetail, tagHabitRecords, tagUserHabits } from "@/lib/cache-tags";
 import { ApiError } from "@/lib/errors";
 import type { HabitCreateInput, HabitUpdateInput } from "@/lib/validators";
 
@@ -19,12 +21,17 @@ const STREAK_LOOKBACK_DAYS = 120;
 const EWMA_ALPHA = 0.2;
 
 export async function listHabits(userId: string) {
-  return db.query.habits.findMany({
-    where: eq(habits.userId, userId),
-    with: {
-      streaksCache: true,
-    },
-  });
+  return await unstable_cache(
+    async () =>
+      db.query.habits.findMany({
+        where: eq(habits.userId, userId),
+        with: {
+          streaksCache: true,
+        },
+      }),
+    ["listHabits", userId],
+    { tags: [tagUserHabits(userId)], revalidate: 300 },
+  )();
 }
 
 export async function createHabit(userId: string, input: HabitCreateInput) {
@@ -59,12 +66,17 @@ export async function createHabit(userId: string, input: HabitCreateInput) {
 }
 
 export async function getHabitOrThrow(habitId: string, userId: string) {
-  const habit = await db.query.habits.findFirst({
-    where: and(eq(habits.id, habitId), eq(habits.userId, userId)),
-    with: {
-      streaksCache: true,
-    },
-  });
+  const habit = await unstable_cache(
+    async () =>
+      db.query.habits.findFirst({
+        where: and(eq(habits.id, habitId), eq(habits.userId, userId)),
+        with: {
+          streaksCache: true,
+        },
+      }),
+    ["getHabitOrThrow", habitId, userId],
+    { tags: [tagHabitDetail(habitId), tagUserHabits(userId)], revalidate: 300 },
+  )();
 
   if (!habit) {
     throw new ApiError(404, "Habit not found");
@@ -118,11 +130,16 @@ export async function listCheckins(
     where.push(lte(checkins.localDay, range.end));
   }
 
-  return db
-    .select()
-    .from(checkins)
-    .where(and(...where))
-    .orderBy(desc(checkins.localDay), desc(checkins.occurredAt));
+  return await unstable_cache(
+    async () =>
+      db
+        .select()
+        .from(checkins)
+        .where(and(...where))
+        .orderBy(desc(checkins.localDay), desc(checkins.occurredAt)),
+    ["listCheckins", habitId, userId, String(range?.start ?? ""), String(range?.end ?? "")],
+    { tags: [tagHabitRecords(habitId)], revalidate: 120 },
+  )();
 }
 
 export async function createCheckin({
@@ -572,18 +589,23 @@ export async function getHabitAnalyticsRange({
   start: string;
   end: string;
 }) {
-  const rows = await db
-    .select()
-    .from(habitAnalyticsDaily)
-    .where(
-      and(
-        eq(habitAnalyticsDaily.habitId, habitId),
-        eq(habitAnalyticsDaily.userId, userId),
-        gte(habitAnalyticsDaily.date, start),
-        lte(habitAnalyticsDaily.date, end),
-      ),
-    )
-    .orderBy(asc(habitAnalyticsDaily.date));
+  const rows = await unstable_cache(
+    async () =>
+      db
+        .select()
+        .from(habitAnalyticsDaily)
+        .where(
+          and(
+            eq(habitAnalyticsDaily.habitId, habitId),
+            eq(habitAnalyticsDaily.userId, userId),
+            gte(habitAnalyticsDaily.date, start),
+            lte(habitAnalyticsDaily.date, end),
+          ),
+        )
+        .orderBy(asc(habitAnalyticsDaily.date)),
+    ["getHabitAnalyticsRange", habitId, userId, start, end],
+    { tags: [tagHabitAnalytics(habitId)], revalidate: 300 },
+  )();
 
   return rows;
 }
