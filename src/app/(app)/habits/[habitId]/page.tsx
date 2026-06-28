@@ -1,23 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
+import { useParams } from "next/navigation";
+import { useQuery } from "convex/react";
 import { api } from "@backend/api";
 import { Id } from "@backend/dataModel";
+import {
+  formatCompletedAt,
+  formatCreatedDate,
+  getHabitCreatedLocalDay,
+  getLocalDay,
+  isHabitActiveOnDay,
+  shiftLocalDay,
+} from "@/lib/dates";
 
-function getLocalDay(timezone: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
+type DayStatus =
+  | "done"
+  | "skip"
+  | "missed"
+  | "future"
+  | "before_creation"
+  | "not_scheduled";
 
 export default function HabitDetailPage() {
   const { habitId } = useParams<{ habitId: string }>();
-  const router = useRouter();
 
   const user = useQuery(api.routes.auth.users.current);
   const habit = useQuery(api.routes.habits.queries.get, {
@@ -25,22 +31,24 @@ export default function HabitDetailPage() {
   });
   const checkins = useQuery(api.routes.checkins.queries.forHabit, {
     habitId: habitId as Id<"habits">,
-    limit: 60,
+    limit: 120,
   });
   const streak = useQuery(api.routes.checkins.queries.streak, {
     habitId: habitId as Id<"habits">,
   });
-  const archive = useMutation(api.routes.habits.mutations.archive);
-  const checkinMutation = useMutation(api.routes.checkins.mutations.checkin);
-  const undoCheckin = useMutation(api.routes.checkins.mutations.undoCheckin);
 
   const timezone = user?.timezone ?? "UTC";
   const localDay = getLocalDay(timezone);
 
-  if (habit === undefined || checkins === undefined || streak === undefined) {
+  if (
+    habit === undefined ||
+    checkins === undefined ||
+    streak === undefined ||
+    user === undefined
+  ) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
       </div>
     );
   }
@@ -49,157 +57,186 @@ export default function HabitDetailPage() {
     return (
       <div className="py-20 text-center text-muted">
         Habit not found.{" "}
-        <Link href="/today" className="text-accent hover:underline">
+        <Link href="/today" className="text-foreground hover:underline">
           Go back
         </Link>
       </div>
     );
   }
 
-  const todayCheckin = checkins.find(
-    (c) => c.localDay === localDay && !c.isSkip,
-  );
+  const createdDay = getHabitCreatedLocalDay(habit, timezone);
+  const completed = checkins.filter((c) => !c.isSkip);
+  const totalReps = completed.length;
   const checkinMap = new Map(checkins.map((c) => [c.localDay, c]));
 
-  // Build last 35 days grid
-  const days: Array<{ day: string; status: "done" | "skip" | "missed" | "future" }> = [];
+  const heatmapDays: Array<{ day: string; status: DayStatus }> = [];
   for (let i = 34; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const day = d.toISOString().slice(0, 10);
+    const day = shiftLocalDay(localDay, -i);
     const c = checkinMap.get(day);
+
     if (day > localDay) {
-      days.push({ day, status: "future" });
+      heatmapDays.push({ day, status: "future" });
+    } else if (day < createdDay) {
+      heatmapDays.push({ day, status: "before_creation" });
     } else if (c) {
-      days.push({ day, status: c.isSkip ? "skip" : "done" });
+      heatmapDays.push({ day, status: c.isSkip ? "skip" : "done" });
+    } else if (!isHabitActiveOnDay(habit, day, timezone)) {
+      heatmapDays.push({ day, status: "not_scheduled" });
     } else {
-      days.push({ day, status: "missed" });
+      heatmapDays.push({ day, status: "missed" });
     }
   }
 
-  async function handleTodayCheckin() {
-    if (todayCheckin) {
-      await undoCheckin({ habitId: habitId as Id<"habits">, localDay });
-    } else {
-      await checkinMutation({ habitId: habitId as Id<"habits">, localDay });
-    }
-  }
-
-  async function handleArchive() {
-    if (!confirm("Archive this habit? You can't undo this easily.")) return;
-    await archive({ habitId: habitId as Id<"habits"> });
-    router.push("/today");
-  }
-
-  const statusColor = {
-    done: "bg-accent",
-    skip: "bg-muted/30",
-    missed: "bg-card",
-    future: "bg-card/40",
+  const statusColor: Record<DayStatus, string> = {
+    done: "bg-accent-orange",
+    skip: "bg-pill",
+    missed: "bg-pill/50",
+    future: "bg-transparent border border-border/50",
+    before_creation: "bg-transparent",
+    not_scheduled: "bg-pill/30",
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            {habit.emoji && <span className="text-2xl">{habit.emoji}</span>}
-            <h1 className="text-2xl font-semibold">{habit.title}</h1>
-          </div>
-          {habit.description && (
-            <p className="mt-1 text-sm text-muted">{habit.description}</p>
-          )}
-        </div>
+    <div className="flex flex-col gap-8">
+      <div className="flex items-center justify-between">
+        <Link
+          href="/today"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-pill text-muted transition-colors hover:text-foreground"
+          aria-label="Back"
+        >
+          ←
+        </Link>
         <Link
           href={`/habits/${habitId}/edit`}
-          className="rounded-xl border border-border bg-card px-3 py-1.5 text-sm text-muted hover:text-foreground transition-colors"
+          className="rounded-full bg-pill px-4 py-2 text-sm font-medium text-muted transition-colors hover:text-foreground"
         >
           Edit
         </Link>
       </div>
 
-      {/* Streak stats */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-border bg-card p-4 text-center">
-          <div className="text-3xl font-bold text-accent">{streak.current}</div>
-          <div className="text-xs text-muted mt-1">Current streak</div>
+      <div className="flex flex-col items-center gap-3 text-center">
+        <p className="font-serif text-2xl text-foreground">{habit.title}</p>
+        {habit.description && (
+          <>
+            <p className="text-sm text-muted">I want to become</p>
+            <p className="font-serif text-2xl text-foreground">
+              {habit.description}
+            </p>
+          </>
+        )}
+        <p className="mt-2 text-sm text-muted">
+          Started {formatCreatedDate(habit, timezone)}
+        </p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-2xl bg-surface p-4 text-center shadow-sm">
+          <div className="text-2xl font-bold text-accent-orange">
+            {streak.current}
+          </div>
+          <div className="mt-1 text-[10px] font-medium text-muted">
+            Current streak
+          </div>
         </div>
-        <div className="rounded-2xl border border-border bg-card p-4 text-center">
-          <div className="text-3xl font-bold text-foreground">{streak.longest}</div>
-          <div className="text-xs text-muted mt-1">Longest streak</div>
+        <div className="rounded-2xl bg-surface p-4 text-center shadow-sm">
+          <div className="text-2xl font-bold text-foreground">
+            {streak.longest}
+          </div>
+          <div className="mt-1 text-[10px] font-medium text-muted">
+            Best streak
+          </div>
+        </div>
+        <div className="rounded-2xl bg-surface p-4 text-center shadow-sm">
+          <div className="text-2xl font-bold text-foreground">{totalReps}</div>
+          <div className="mt-1 text-[10px] font-medium text-muted">
+            Total reps
+          </div>
         </div>
       </div>
 
-      {/* Today check-in */}
-      <button
-        onClick={handleTodayCheckin}
-        className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-semibold transition-all ${
-          todayCheckin
-            ? "bg-accent/20 border border-accent/40 text-foreground"
-            : "bg-accent text-background hover:opacity-90"
-        }`}
-      >
-        {todayCheckin ? "✓ Done today — tap to undo" : "Mark done today"}
-      </button>
-
-      {/* 35-day heatmap */}
-      <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-muted">Last 35 days</h2>
+      {/* Heatmap */}
+      <div className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold">Last 35 days</h2>
         <div className="grid grid-cols-7 gap-1.5">
-          {days.map(({ day, status }) => (
-            <div
-              key={day}
-              title={day}
-              className={`aspect-square rounded-md ${statusColor[status]}`}
-            />
-          ))}
+          {heatmapDays.map(({ day, status }) => {
+            const clickable =
+              status !== "before_creation" && status !== "future";
+            const className = `aspect-square rounded-lg ${statusColor[status]} ${
+              clickable ? "transition-opacity hover:opacity-80" : ""
+            }`;
+
+            if (!clickable) {
+              return (
+                <div
+                  key={day}
+                  title={day}
+                  className={className}
+                  aria-hidden
+                />
+              );
+            }
+
+            return (
+              <Link
+                key={day}
+                href={`/today?day=${day}`}
+                title={day}
+                className={className}
+              />
+            );
+          })}
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted">
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-accent" /> Done
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-3 rounded bg-accent-orange" />
+            Done
           </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-card border border-border" /> Missed
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-3 rounded bg-pill/50" />
+            Missed
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-3 rounded bg-pill/30" />
+            Off day
           </span>
         </div>
       </div>
 
-      {/* Schedule info */}
-      <div className="rounded-2xl border border-border bg-card p-4 text-sm">
-        <div className="flex justify-between text-muted">
-          <span>Track type</span>
-          <span className="capitalize text-foreground">{habit.trackType}</span>
-        </div>
-        <div className="mt-2 flex justify-between text-muted">
-          <span>Schedule</span>
-          <span className="text-foreground">
-            {habit.scheduleType === "daily"
-              ? "Every day"
-              : `${habit.allowedDays?.length ?? 0} days/week`}
-          </span>
-        </div>
-        {habit.trackType === "count" && habit.countTarget && (
-          <div className="mt-2 flex justify-between text-muted">
-            <span>Daily target</span>
-            <span className="text-foreground">{habit.countTarget}</span>
-          </div>
-        )}
-        {habit.trackType === "duration" && habit.durationTarget && (
-          <div className="mt-2 flex justify-between text-muted">
-            <span>Duration target</span>
-            <span className="text-foreground">{habit.durationTarget} min</span>
-          </div>
+      {/* History list */}
+      <div className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold">Completion history</h2>
+        {completed.length === 0 ? (
+          <p className="rounded-2xl bg-pill px-4 py-6 text-center text-sm text-muted">
+            No completions yet
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {completed.slice(0, 30).map((c) => (
+              <li key={c._id}>
+                <Link
+                  href={`/today?day=${c.localDay}`}
+                  className="flex items-center justify-between rounded-2xl bg-surface px-4 py-3 shadow-sm transition-colors hover:bg-pill"
+                >
+                  <span className="text-sm font-medium">
+                    {new Date(c.localDay + "T12:00:00").toLocaleDateString(
+                      "en-US",
+                      {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      },
+                    )}
+                  </span>
+                  <span className="text-xs text-muted">
+                    {formatCompletedAt(c.completedAt, timezone)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
-
-      {/* Danger zone */}
-      <button
-        onClick={handleArchive}
-        className="rounded-xl border border-border py-2.5 text-sm text-muted hover:border-red-500/50 hover:text-red-400 transition-colors"
-      >
-        Archive habit
-      </button>
     </div>
   );
 }

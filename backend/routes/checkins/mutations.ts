@@ -2,6 +2,10 @@ import { v } from "convex/values";
 
 import { mutation } from "../../_generated/server";
 import { requireUser } from "../../lib/auth";
+import {
+  getHabitCreatedLocalDay,
+  isHabitActiveOnDay,
+} from "../../lib/dates";
 
 export const checkin = mutation({
   args: {
@@ -15,6 +19,14 @@ export const checkin = mutation({
 
     const habit = await ctx.db.get(habitId);
     if (!habit || habit.userId !== user._id) throw new Error("Habit not found");
+
+    const createdDay = getHabitCreatedLocalDay(habit, user.timezone);
+    if (localDay < createdDay) {
+      throw new Error("Cannot check in before this habit was created");
+    }
+    if (!isHabitActiveOnDay(habit, localDay, user.timezone)) {
+      throw new Error("Habit is not scheduled for this day");
+    }
 
     // Upsert: remove existing checkin for this day if any
     const existing = await ctx.db
@@ -74,6 +86,11 @@ export const skip = mutation({
 
     const habit = await ctx.db.get(habitId);
     if (!habit || habit.userId !== user._id) throw new Error("Habit not found");
+
+    const createdDay = getHabitCreatedLocalDay(habit, user.timezone);
+    if (localDay < createdDay) {
+      throw new Error("Cannot skip before this habit was created");
+    }
 
     const existing = await ctx.db
       .query("checkins")

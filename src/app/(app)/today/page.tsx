@@ -1,180 +1,242 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
-import { useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { DateStrip } from "@/components/habits/DateStrip";
+import { HabitCard } from "@/components/habits/HabitCard";
+import {
+  formatDayHeading,
+  getHabitCreatedLocalDay,
+  getLocalDay,
+  getWeekDays,
+  isHabitActiveOnDay,
+  weekOffsetForDay,
+} from "@/lib/dates";
+import { Id } from "@backend/dataModel";
 
-function getLocalDay(timezone: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
+function TodayPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-function isDueToday(
-  habit: {
-    scheduleType: string;
-    allowedDays?: number[];
-  },
-  timezone: string,
-): boolean {
-  if (habit.scheduleType === "daily") return true;
-  if (habit.scheduleType === "specific_days" && habit.allowedDays) {
-    const today = new Date(
-      new Intl.DateTimeFormat("en-CA", {
-        timeZone: timezone,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date()),
-    );
-    return habit.allowedDays.includes(today.getDay());
-  }
-  return true;
-}
-
-export default function TodayPage() {
   const user = useQuery(api.routes.auth.users.current);
   const habits = useQuery(api.routes.habits.queries.list, {});
   const timezone = user?.timezone ?? "UTC";
-  const localDay = getLocalDay(timezone);
-  const todayCheckins = useQuery(api.routes.checkins.queries.forToday, { localDay });
+  const todayLocal = getLocalDay(timezone);
+
+  const dayParam = searchParams.get("day");
+  const selectedDay =
+    dayParam && dayParam <= todayLocal ? dayParam : todayLocal;
+
+  const [weekOffset, setWeekOffset] = useState(() =>
+    weekOffsetForDay(selectedDay, timezone),
+  );
+
+  useEffect(() => {
+    setWeekOffset(weekOffsetForDay(selectedDay, timezone));
+  }, [selectedDay, timezone]);
+
+  const weekDays = useMemo(
+    () => getWeekDays(timezone, weekOffset),
+    [timezone, weekOffset],
+  );
+
+  const weekDayStrings = useMemo(
+    () => weekDays.map((d) => d.localDay),
+    [weekDays],
+  );
+
+  const weekCheckins = useQuery(api.routes.checkins.queries.forDayRange, {
+    days: weekDayStrings,
+  });
+  const dayCheckins = useQuery(api.routes.checkins.queries.forToday, {
+    localDay: selectedDay,
+  });
   const checkin = useMutation(api.routes.checkins.mutations.checkin);
-  const undoCheckin = useMutation(api.routes.checkins.mutations.undoCheckin);
 
-  const [loading, setLoading] = useState<string | null>(null);
+  const [completingId, setCompletingId] = useState<string | null>(null);
 
-  if (user === undefined || habits === undefined || todayCheckins === undefined) {
+  function selectDay(localDay: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (localDay === todayLocal) {
+      params.delete("day");
+    } else {
+      params.set("day", localDay);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `/today?${qs}` : "/today", { scroll: false });
+    setWeekOffset(weekOffsetForDay(localDay, timezone));
+  }
+
+  if (
+    user === undefined ||
+    habits === undefined ||
+    dayCheckins === undefined ||
+    weekCheckins === undefined
+  ) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
       </div>
     );
   }
 
-  const checkinMap = new Map(todayCheckins.map((c) => [c.habitId, c]));
-  const dueHabits = (habits ?? []).filter((h) => isDueToday(h, timezone));
+  const checkinMap = new Map(dayCheckins.map((c) => [c.habitId, c]));
+  const dueHabits = (habits ?? []).filter((h) =>
+    isHabitActiveOnDay(h, selectedDay, timezone),
+  );
+  const isToday = selectedDay === todayLocal;
+  const canComplete = isToday;
+
+  const earliestHabitDay =
+    habits && habits.length > 0
+      ? habits.reduce(
+          (earliest, h) => {
+            const created = getHabitCreatedLocalDay(h, timezone);
+            return created < earliest ? created : earliest;
+          },
+          getHabitCreatedLocalDay(habits[0], timezone),
+        )
+      : null;
+  const isBeforeAnyHabits =
+    earliestHabitDay !== null && selectedDay < earliestHabitDay;
+
+  const completedDays = new Set<string>();
+  for (const c of weekCheckins) {
+    if (!c.isSkip) completedDays.add(c.localDay);
+  }
+
   const completedCount = dueHabits.filter((h) => {
     const c = checkinMap.get(h._id);
     return c && !c.isSkip;
   }).length;
 
-  async function handleCheckin(habitId: string) {
-    setLoading(habitId);
+  const canGoNextWeek = weekOffset < 0;
+
+  async function handleComplete(habitId: Id<"habits">) {
+    setCompletingId(habitId);
     try {
-      const existing = checkinMap.get(habitId as never);
-      if (existing && !existing.isSkip) {
-        await undoCheckin({ habitId: habitId as never, localDay });
-      } else {
-        await checkin({ habitId: habitId as never, localDay });
-      }
+      await checkin({ habitId, localDay: selectedDay });
     } finally {
-      setLoading(null);
+      setCompletingId(null);
     }
   }
 
-  const dateLabel = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    timeZone: timezone,
-  });
-
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      {/* Top bar */}
+      <div className="flex items-center justify-between pt-2">
         <div>
-          <h1 className="text-2xl font-semibold">Today</h1>
-          <p className="text-sm text-muted">{dateLabel}</p>
+          <h1 className="text-lg font-semibold">
+            {formatDayHeading(selectedDay, timezone)}
+          </h1>
+          {dueHabits.length > 0 && (
+            <p className="text-xs text-muted">
+              {completedCount}/{dueHabits.length} completed
+            </p>
+          )}
         </div>
-        {dueHabits.length > 0 && (
-          <span className="text-sm text-muted">
-            {completedCount}/{dueHabits.length}
-          </span>
-        )}
+        <Link
+          href="/habits/new"
+          className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background transition-opacity hover:opacity-90"
+        >
+          <span className="text-base leading-none">+</span>
+          Habits
+        </Link>
       </div>
 
-      {dueHabits.length === 0 && (
-        <div className="rounded-2xl border border-border bg-card p-8 text-center">
-          <p className="text-muted">No habits scheduled for today.</p>
-          <Link
-            href="/habits/new"
-            className="mt-4 inline-flex items-center justify-center rounded-full bg-accent px-5 py-2 text-sm font-semibold text-background hover:opacity-90 transition-opacity"
-          >
-            Add a habit
-          </Link>
+      {/* Date strip */}
+      <DateStrip
+        days={weekDays}
+        selectedDay={selectedDay}
+        todayLocal={todayLocal}
+        completedDays={completedDays}
+        canGoNextWeek={canGoNextWeek}
+        onSelectDay={selectDay}
+        onPrevWeek={() => setWeekOffset((o) => o - 1)}
+        onNextWeek={() => setWeekOffset((o) => Math.min(o + 1, 0))}
+      />
+
+      <div className="h-px bg-border" />
+
+      {!isToday && (
+        <p className="rounded-2xl bg-pill px-4 py-3 text-center text-sm text-muted">
+          Viewing history — switch to today to complete habits
+        </p>
+      )}
+
+      {/* Habit cards */}
+      {dueHabits.length === 0 ? (
+        <div className="flex flex-col items-center gap-4 py-16 text-center">
+          <p className="font-serif text-xl text-muted">
+            {isBeforeAnyHabits
+              ? "No habits yet on this day"
+              : isToday
+                ? "No habits for today"
+                : "No habits scheduled"}
+          </p>
+          {isBeforeAnyHabits && earliestHabitDay && (
+            <p className="text-sm text-muted">
+              Your first habit starts{" "}
+              {new Date(earliestHabitDay + "T12:00:00").toLocaleDateString(
+                "en-US",
+                { weekday: "long", month: "long", day: "numeric" },
+              )}
+            </p>
+          )}
+          {isToday && !isBeforeAnyHabits && (
+            <Link
+              href="/habits/new"
+              className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90"
+            >
+              <span className="text-base leading-none">+</span>
+              Create your first habit
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-10">
+          {dueHabits.map((habit) => {
+            const c = checkinMap.get(habit._id);
+            const done = !!c && !c.isSkip;
+
+            return (
+              <HabitCard
+                key={habit._id}
+                habitId={habit._id}
+                title={habit.title}
+                description={habit.description}
+                done={done}
+                localDay={selectedDay}
+                canComplete={canComplete}
+                onComplete={() => handleComplete(habit._id)}
+              />
+            );
+          })}
         </div>
       )}
 
-      <ul className="flex flex-col gap-3">
-        {dueHabits.map((habit) => {
-          const c = checkinMap.get(habit._id);
-          const done = !!c && !c.isSkip;
-          const isLoading = loading === habit._id;
-
-          return (
-            <li key={habit._id}>
-              <div
-                className={`flex items-center gap-4 rounded-2xl border p-4 transition-colors ${
-                  done
-                    ? "border-accent/30 bg-accent/10"
-                    : "border-border bg-card hover:bg-card/80"
-                }`}
-              >
-                <button
-                  onClick={() => handleCheckin(habit._id)}
-                  disabled={isLoading}
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-lg transition-all ${
-                    done
-                      ? "border-accent bg-accent text-background"
-                      : "border-muted/40 text-transparent hover:border-accent/60"
-                  }`}
-                  aria-label={done ? "Undo check-in" : "Check in"}
-                >
-                  {isLoading ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  ) : done ? (
-                    "✓"
-                  ) : (
-                    ""
-                  )}
-                </button>
-
-                <Link href={`/habits/${habit._id}`} className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    {habit.emoji && <span>{habit.emoji}</span>}
-                    <span
-                      className={`font-medium ${done ? "text-muted line-through" : "text-foreground"}`}
-                    >
-                      {habit.title}
-                    </span>
-                  </div>
-                  {habit.trackType !== "binary" && (
-                    <p className="text-xs text-muted mt-0.5">
-                      {habit.trackType === "count" &&
-                        habit.countTarget &&
-                        `Target: ${habit.countTarget}`}
-                      {habit.trackType === "duration" &&
-                        habit.durationTarget &&
-                        `${habit.durationTarget} min`}
-                    </p>
-                  )}
-                </Link>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      {habits && habits.length > 0 && dueHabits.length < habits.length && (
-        <p className="text-center text-xs text-muted">
-          {habits.length - dueHabits.length} habit
-          {habits.length - dueHabits.length !== 1 ? "s" : ""} not scheduled today
-        </p>
+      {completingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
+        </div>
       )}
     </div>
+  );
+}
+
+export default function TodayPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-20">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
+        </div>
+      }
+    >
+      <TodayPageContent />
+    </Suspense>
   );
 }

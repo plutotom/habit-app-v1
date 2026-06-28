@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { mutation } from "../../_generated/server";
 import { requireUser } from "../../lib/auth";
+import { timestampToLocalDay } from "../../lib/dates";
 import { trackTypeValidator, scheduleTypeValidator } from "../../schemas/habits";
 
 const habitFields = {
@@ -27,13 +28,16 @@ export const create = mutation({
       .collect();
 
     const order = existing.length;
+    const createdAt = Date.now();
+    const createdLocalDay = timestampToLocalDay(createdAt, user.timezone);
 
     return await ctx.db.insert("habits", {
       ...args,
       userId: user._id,
       isArchived: false,
       order,
-      createdAt: Date.now(),
+      createdAt,
+      createdLocalDay,
     });
   },
 });

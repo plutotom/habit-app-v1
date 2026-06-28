@@ -9,6 +9,7 @@
  */
 
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_dates from "../lib/dates.js";
 import type * as routes_auth_users from "../routes/auth/users.js";
 import type * as routes_checkins_mutations from "../routes/checkins/mutations.js";
 import type * as routes_checkins_queries from "../routes/checkins/queries.js";
@@ -26,6 +27,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
+  "lib/dates": typeof lib_dates;
   "routes/auth/users": typeof routes_auth_users;
   "routes/checkins/mutations": typeof routes_checkins_mutations;
   "routes/checkins/queries": typeof routes_checkins_queries;

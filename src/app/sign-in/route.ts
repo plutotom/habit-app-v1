@@ -1,9 +1,9 @@
 import { getSignInUrl } from "@workos-inc/authkit-nextjs";
-import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 
 export async function GET() {
   const authorizationUrl = await getSignInUrl({
     redirectUri: process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI,
   });
-  return redirect(authorizationUrl);
+  return NextResponse.redirect(authorizationUrl);
 }

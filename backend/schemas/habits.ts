@@ -28,6 +28,8 @@ export const habitTables = {
     isArchived: v.boolean(),
     order: v.number(),
     createdAt: v.number(),
+    // User's local YYYY-MM-DD when the habit was created (for history accuracy)
+    createdLocalDay: v.optional(v.string()),
   })
     .index("by_userId", ["userId"])
     .index("by_userId_archived", ["userId", "isArchived"]),
