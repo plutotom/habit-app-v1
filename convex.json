@@ -4,15 +4,15 @@
     "dev": {
       "configure": {
         "redirectUris": [
-          "http://localhost:3000/callback"
+          "http://localhost:4021/callback"
         ],
-        "appHomepageUrl": "http://localhost:3000",
-        "corsOrigins": ["http://localhost:3000"]
+        "appHomepageUrl": "http://localhost:4021",
+        "corsOrigins": ["http://localhost:4021"]
       },
       "localEnvVars": {
         "WORKOS_CLIENT_ID": "${authEnv.WORKOS_CLIENT_ID}",
         "WORKOS_API_KEY": "${authEnv.WORKOS_API_KEY}",
-        "NEXT_PUBLIC_WORKOS_REDIRECT_URI": "http://localhost:3000/callback"
+        "NEXT_PUBLIC_WORKOS_REDIRECT_URI": "http://localhost:4021/callback"
       }
     },
     "prod": {

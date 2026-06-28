@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
 import { useState } from "react";
@@ -120,12 +119,12 @@ export default function ProfilePage() {
         </button>
       </div>
 
-      <Link
+      <a
         href="/sign-out"
         className="rounded-full border border-border py-3 text-center text-sm font-semibold text-muted hover:text-foreground hover:bg-card transition-colors"
       >
         Sign out
-      </Link>
+      </a>
     </div>
   );
 }

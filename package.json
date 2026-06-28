@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "convex dev --start 'next dev'",
-    "dev:web": "next dev",
+    "dev": "convex dev --start 'next dev -p 4021'",
+    "dev:web": "next dev -p 4021",
     "dev:backend": "convex dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 4021",
     "lint": "eslint"
   },
   "dependencies": {

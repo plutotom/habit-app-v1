@@ -30,7 +30,7 @@ pnpm install
 pnpm dev
 ```
 
-The app runs at http://localhost:3000. Tailwind and the App Router provide hot reload out of the box.
+The app runs at http://localhost:4021. Tailwind and the App Router provide hot reload out of the box.
 
 ### Database (Drizzle + Neon)
 

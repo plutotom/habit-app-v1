@@ -23,12 +23,12 @@ export default async function AppLayout({
             <Link href="/profile" className="hover:text-foreground transition-colors">
               Profile
             </Link>
-            <Link
+            <a
               href="/sign-out"
               className="hover:text-foreground transition-colors"
             >
               Sign out
-            </Link>
+            </a>
           </nav>
         </div>
       </header>
