@@ -1,22 +1,15 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { authkitProxy } from "@workos-inc/authkit-nextjs";
 
-const isProtectedRoute = createRouteMatcher(["/app(.*)"]);
-
-export default clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) {
-    // Redirects unauthenticated users to the sign-in page and returns to the original URL after sign-in
-    await auth.protect();
-  }
-  
-  return NextResponse.next();
+export default authkitProxy({
+  middlewareAuth: {
+    enabled: true,
+    unauthenticatedPaths: ["/", "/sign-in", "/sign-up", "/sign-out", "/callback"],
+  },
 });
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
     "/(api|trpc)(.*)",
   ],
 };
