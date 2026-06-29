@@ -1,7 +1,8 @@
 import { authkitProxy } from "@workos-inc/authkit-nextjs";
+import { getWorkosRedirectUri } from "@/lib/workos-redirect-uri";
 
 export default authkitProxy({
-  redirectUri: process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI,
+  redirectUri: getWorkosRedirectUri(),
   middlewareAuth: {
     enabled: true,
     unauthenticatedPaths: ["/", "/sign-in", "/sign-up", "/sign-out", "/callback"],
