@@ -6,13 +6,14 @@ import { api } from "@backend/api";
 
 export function UserBootstrap({ email }: { email?: string }) {
   const { isAuthenticated } = useConvexAuth();
-  const getOrCreate = useMutation(api.routes.auth.users.getOrCreate);
+  const getOrCreate = useMutation(api.users.getOrCreate);
   const ran = useRef(false);
 
   useEffect(() => {
     if (!isAuthenticated || ran.current) return;
     ran.current = true;
-    void getOrCreate({ email });
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    void getOrCreate({ email, timezone });
   }, [isAuthenticated, email, getOrCreate]);
 
   return null;

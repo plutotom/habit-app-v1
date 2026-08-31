@@ -1,13 +1,18 @@
 import { v } from "convex/values";
 
-import { query } from "../../_generated/server";
-import { getUser } from "../../lib/auth";
+import { mutation, query } from "./_generated/server";
+import { getUser, requireUser } from "./lib/auth";
 import {
   computeCurrentStreak,
   computeLongestStreak,
   getHabitCreatedLocalDay,
+  isHabitActiveOnDay,
   timestampToLocalDay,
-} from "../../lib/dates";
+} from "./lib/dates";
+
+const MAX_CHECKINS = 400;
+const MAX_RANGE_DAYS = 31;
+const MAX_HABITS_PER_DAY = 200;
 
 export const forHabit = query({
   args: {
@@ -21,28 +26,11 @@ export const forHabit = query({
     const habit = await ctx.db.get(habitId);
     if (!habit || habit.userId !== user._id) return [];
 
-    const checkins = await ctx.db
+    return await ctx.db
       .query("checkins")
       .withIndex("by_habitId", (q) => q.eq("habitId", habitId))
       .order("desc")
-      .take(limit);
-
-    return checkins;
-  },
-});
-
-export const forToday = query({
-  args: { localDay: v.string() },
-  handler: async (ctx, { localDay }) => {
-    const user = await getUser(ctx);
-    if (!user) return [];
-
-    return await ctx.db
-      .query("checkins")
-      .withIndex("by_userId_localDay", (q) =>
-        q.eq("userId", user._id).eq("localDay", localDay),
-      )
-      .collect();
+      .take(Math.min(limit, MAX_CHECKINS));
   },
 });
 
@@ -53,13 +41,13 @@ export const forDayRange = query({
     if (!user) return [];
 
     const results = [];
-    for (const localDay of days) {
+    for (const localDay of days.slice(0, MAX_RANGE_DAYS)) {
       const dayCheckins = await ctx.db
         .query("checkins")
         .withIndex("by_userId_localDay", (q) =>
           q.eq("userId", user._id).eq("localDay", localDay),
         )
-        .collect();
+        .take(MAX_HABITS_PER_DAY);
       results.push(...dayCheckins);
     }
 
@@ -84,7 +72,7 @@ export const streak = query({
       .query("checkins")
       .withIndex("by_habitId", (q) => q.eq("habitId", habitId))
       .order("desc")
-      .collect();
+      .take(MAX_CHECKINS);
 
     const completed = checkins
       .filter((c) => !c.isSkip && c.localDay >= createdDay)
@@ -109,5 +97,72 @@ export const streak = query({
     );
 
     return { current, longest };
+  },
+});
+
+export const checkin = mutation({
+  args: {
+    habitId: v.id("habits"),
+    localDay: v.string(),
+  },
+  handler: async (ctx, { habitId, localDay }) => {
+    const user = await requireUser(ctx);
+
+    const habit = await ctx.db.get(habitId);
+    if (!habit || habit.userId !== user._id) throw new Error("Habit not found");
+
+    const createdDay = getHabitCreatedLocalDay(habit, user.timezone);
+    if (localDay < createdDay) {
+      throw new Error("Cannot check in before this habit was created");
+    }
+    if (!isHabitActiveOnDay(habit, localDay, user.timezone)) {
+      throw new Error("Habit is not scheduled for this day");
+    }
+
+    const existing = await ctx.db
+      .query("checkins")
+      .withIndex("by_habitId_localDay", (q) =>
+        q.eq("habitId", habitId).eq("localDay", localDay),
+      )
+      .unique();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        value: 1,
+        isSkip: false,
+        completedAt: Date.now(),
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("checkins", {
+      habitId,
+      userId: user._id,
+      localDay,
+      completedAt: Date.now(),
+      value: 1,
+      isSkip: false,
+    });
+  },
+});
+
+export const undoCheckin = mutation({
+  args: { habitId: v.id("habits"), localDay: v.string() },
+  handler: async (ctx, { habitId, localDay }) => {
+    const user = await requireUser(ctx);
+
+    const habit = await ctx.db.get(habitId);
+    if (!habit || habit.userId !== user._id) throw new Error("Habit not found");
+
+    const existing = await ctx.db
+      .query("checkins")
+      .withIndex("by_habitId_localDay", (q) =>
+        q.eq("habitId", habitId).eq("localDay", localDay),
+      )
+      .unique();
+
+    if (existing) {
+      await ctx.db.delete(existing._id);
+    }
   },
 });

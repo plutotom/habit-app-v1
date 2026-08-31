@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 
-import { mutation, query } from "../../_generated/server";
-import { weekStartValidator } from "../../schemas/users";
+import { mutation, query } from "./_generated/server";
+import { weekStartValidator } from "./schema";
 
 export const current = query({
   args: {},
@@ -16,7 +16,11 @@ export const current = query({
 });
 
 export const getOrCreate = mutation({
-  args: { email: v.optional(v.string()), name: v.optional(v.string()) },
+  args: {
+    email: v.optional(v.string()),
+    name: v.optional(v.string()),
+    timezone: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
@@ -31,7 +35,7 @@ export const getOrCreate = mutation({
       workosId: identity.subject,
       email: identity.email ?? args.email ?? "",
       name: args.name,
-      timezone: "UTC",
+      timezone: args.timezone ?? "UTC",
       weekStart: "mon",
       createdAt: Date.now(),
     });
@@ -54,11 +58,10 @@ export const updateProfile = mutation({
       .unique();
     if (!user) throw new Error("User not found");
 
-    const patch: Record<string, unknown> = {};
-    if (args.timezone !== undefined) patch.timezone = args.timezone;
-    if (args.weekStart !== undefined) patch.weekStart = args.weekStart;
-    if (args.name !== undefined) patch.name = args.name;
-
-    await ctx.db.patch(user._id, patch);
+    await ctx.db.patch(user._id, {
+      ...(args.timezone !== undefined ? { timezone: args.timezone } : {}),
+      ...(args.weekStart !== undefined ? { weekStart: args.weekStart } : {}),
+      ...(args.name !== undefined ? { name: args.name } : {}),
+    });
   },
 });

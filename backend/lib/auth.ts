@@ -1,6 +1,7 @@
 import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 
+/** WorkOS user id (`identity.subject`) is stored as `users.workosId`. */
 export async function getUser(
   ctx: QueryCtx | MutationCtx,
 ): Promise<Doc<"users"> | null> {

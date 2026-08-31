@@ -1,3 +1,5 @@
+export type WeekStart = "mon" | "sun";
+
 export function getLocalDay(timezone: string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
@@ -15,8 +17,12 @@ export type WeekDay = {
   isFuture: boolean;
 };
 
-/** Returns Mon–Sun for a given week offset (0 = current week, -1 = previous, etc.). */
-export function getWeekDays(timezone: string, weekOffset = 0): WeekDay[] {
+/** Returns a Sun–Sat or Mon–Sun week for the given offset (0 = current week). */
+export function getWeekDays(
+  timezone: string,
+  weekOffset = 0,
+  weekStart: WeekStart = "mon",
+): WeekDay[] {
   const localDayFormatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
     year: "numeric",
@@ -35,12 +41,17 @@ export function getWeekDays(timezone: string, weekOffset = 0): WeekDay[] {
   const todayLocal = localDayFormatter.format(new Date());
   const today = new Date(todayLocal + "T12:00:00");
   const dayOfWeek = today.getDay();
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const startOffset =
+    weekStart === "sun"
+      ? -dayOfWeek
+      : dayOfWeek === 0
+        ? -6
+        : 1 - dayOfWeek;
 
   const days: WeekDay[] = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(todayLocal + "T12:00:00");
-    d.setDate(d.getDate() + mondayOffset + weekOffset * 7 + i);
+    d.setDate(d.getDate() + startOffset + weekOffset * 7 + i);
     const localDay = localDayFormatter.format(d);
     days.push({
       label: weekdayFormatter.format(d),
@@ -52,10 +63,6 @@ export function getWeekDays(timezone: string, weekOffset = 0): WeekDay[] {
   }
 
   return days;
-}
-
-export function compareLocalDays(a: string, b: string): number {
-  return a.localeCompare(b);
 }
 
 export function isDueOnDay(
@@ -70,7 +77,10 @@ export function isDueOnDay(
   return true;
 }
 
-export function timestampToLocalDay(timestamp: number, timezone: string): string {
+export function timestampToLocalDay(
+  timestamp: number,
+  timezone: string,
+): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
     year: "numeric",
@@ -141,12 +151,14 @@ export function shiftLocalDay(localDay: string, days: number): string {
 export function weekOffsetForDay(
   localDay: string,
   timezone: string,
+  weekStart: WeekStart = "mon",
 ): number {
-  const targetWeek = getWeekDays(timezone, 0);
-  if (targetWeek.some((d) => d.localDay === localDay)) return 0;
+  if (getWeekDays(timezone, 0, weekStart).some((d) => d.localDay === localDay)) {
+    return 0;
+  }
 
   for (let offset = -1; offset >= -52; offset--) {
-    const week = getWeekDays(timezone, offset);
+    const week = getWeekDays(timezone, offset, weekStart);
     if (week.some((d) => d.localDay === localDay)) return offset;
   }
 
@@ -167,4 +179,12 @@ export function formatCompletedAt(timestamp: number, timezone: string): string {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(timestamp));
+}
+
+export function formatShortDate(localDay: string): string {
+  return new Date(localDay + "T12:00:00").toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
