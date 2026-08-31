@@ -8,16 +8,11 @@
  * @module
  */
 
+import type * as checkins from "../checkins.js";
+import type * as habits from "../habits.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_dates from "../lib/dates.js";
-import type * as routes_auth_users from "../routes/auth/users.js";
-import type * as routes_checkins_mutations from "../routes/checkins/mutations.js";
-import type * as routes_checkins_queries from "../routes/checkins/queries.js";
-import type * as routes_habits_mutations from "../routes/habits/mutations.js";
-import type * as routes_habits_queries from "../routes/habits/queries.js";
-import type * as schemas_checkins from "../schemas/checkins.js";
-import type * as schemas_habits from "../schemas/habits.js";
-import type * as schemas_users from "../schemas/users.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -26,16 +21,11 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  checkins: typeof checkins;
+  habits: typeof habits;
   "lib/auth": typeof lib_auth;
   "lib/dates": typeof lib_dates;
-  "routes/auth/users": typeof routes_auth_users;
-  "routes/checkins/mutations": typeof routes_checkins_mutations;
-  "routes/checkins/queries": typeof routes_checkins_queries;
-  "routes/habits/mutations": typeof routes_habits_mutations;
-  "routes/habits/queries": typeof routes_habits_queries;
-  "schemas/checkins": typeof schemas_checkins;
-  "schemas/habits": typeof schemas_habits;
-  "schemas/users": typeof schemas_users;
+  users: typeof users;
 }>;
 
 /**

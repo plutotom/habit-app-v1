@@ -5,9 +5,11 @@ import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@backend/api";
 import { Id } from "@backend/dataModel";
+import { PageLoading } from "@/components/ui/Spinner";
 import {
   formatCompletedAt,
   formatCreatedDate,
+  formatShortDate,
   getHabitCreatedLocalDay,
   getLocalDay,
   isHabitActiveOnDay,
@@ -25,15 +27,15 @@ type DayStatus =
 export default function HabitDetailPage() {
   const { habitId } = useParams<{ habitId: string }>();
 
-  const user = useQuery(api.routes.auth.users.current);
-  const habit = useQuery(api.routes.habits.queries.get, {
+  const user = useQuery(api.users.current);
+  const habit = useQuery(api.habits.get, {
     habitId: habitId as Id<"habits">,
   });
-  const checkins = useQuery(api.routes.checkins.queries.forHabit, {
+  const checkins = useQuery(api.checkins.forHabit, {
     habitId: habitId as Id<"habits">,
     limit: 120,
   });
-  const streak = useQuery(api.routes.checkins.queries.streak, {
+  const streak = useQuery(api.checkins.streak, {
     habitId: habitId as Id<"habits">,
   });
 
@@ -46,11 +48,7 @@ export default function HabitDetailPage() {
     streak === undefined ||
     user === undefined
   ) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
-      </div>
-    );
+    return <PageLoading />;
   }
 
   if (!habit) {
@@ -129,7 +127,6 @@ export default function HabitDetailPage() {
         </p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-2xl bg-surface p-4 text-center shadow-sm">
           <div className="text-2xl font-bold text-accent-orange">
@@ -155,7 +152,6 @@ export default function HabitDetailPage() {
         </div>
       </div>
 
-      {/* Heatmap */}
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold">Last 35 days</h2>
         <div className="grid grid-cols-7 gap-1.5">
@@ -168,12 +164,7 @@ export default function HabitDetailPage() {
 
             if (!clickable) {
               return (
-                <div
-                  key={day}
-                  title={day}
-                  className={className}
-                  aria-hidden
-                />
+                <div key={day} title={day} className={className} aria-hidden />
               );
             }
 
@@ -203,7 +194,6 @@ export default function HabitDetailPage() {
         </div>
       </div>
 
-      {/* History list */}
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold">Completion history</h2>
         {completed.length === 0 ? (
@@ -219,14 +209,7 @@ export default function HabitDetailPage() {
                   className="flex items-center justify-between rounded-2xl bg-surface px-4 py-3 shadow-sm transition-colors hover:bg-pill"
                 >
                   <span className="text-sm font-medium">
-                    {new Date(c.localDay + "T12:00:00").toLocaleDateString(
-                      "en-US",
-                      {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                      },
-                    )}
+                    {formatShortDate(c.localDay)}
                   </span>
                   <span className="text-xs text-muted">
                     {formatCompletedAt(c.completedAt, timezone)}

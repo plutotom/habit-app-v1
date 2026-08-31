@@ -1,52 +1,48 @@
-## Habit Tracker (Next.js 14 + Vercel)
+# Habits
 
-Mobile-first, dark-mode-only habit tracker that runs entirely on Vercel Serverless. Auth is provided by Clerk, data lives in Neon Postgres, and all analytics are computed on-demand without background workers.
+Mobile-first habit tracker. Hold-to-complete check-ins, streaks, and a simple schedule (daily or specific weekdays).
 
-### Stack
+Not a production app — a POC to build on.
 
-- Next.js 14 App Router · React 19 · TypeScript
-- Tailwind CSS 4 with custom dark theme tokens
-- Drizzle ORM targeting Neon Postgres (HTTP driver)
-- Clerk for Discord OAuth
+## Stack
 
-### Prerequisites
+- Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4
+- [Convex](https://convex.dev) for the backend and realtime data
+- [WorkOS AuthKit](https://workos.com/authkit) for auth
+
+## Prerequisites
 
 - Node.js 20+
 - pnpm 9+
-- Neon Postgres database & Clerk application
+- A Convex project (`npx convex login` then `npx convex dev`)
+- A WorkOS application with AuthKit enabled
 
-### Environment variables
+## Environment
 
-Copy `.env.example` to `.env.local` and provide real credentials:
+Copy `.env.example` to `.env.local` and fill in:
 
 ```bash
 cp .env.example .env.local
 ```
 
-### Install & develop
+`pnpm dev` also writes Convex + AuthKit local values via `convex.json`.
+
+## Develop
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-The app runs at http://localhost:4021. Tailwind and the App Router provide hot reload out of the box.
+App: http://localhost:4021
 
-### Database (Drizzle + Neon)
+- `pnpm lint` — ESLint
+- `pnpm typecheck` — TypeScript
 
-```bash
-pnpm db:generate   # generate SQL from schema
-pnpm db:migrate    # run generated migrations against DATABASE_URL
-```
+## What’s in the app
 
-`drizzle.config.ts` uses `DATABASE_URL` from `.env.local` to connect to Neon.
-
-### Linting
-
-```bash
-pnpm lint
-```
-
-### Deployment
-
-Configure the same environment variables inside Vercel. The project is designed to live in a single Vercel deployment (UI + API routes). Neon and Clerk secrets are required for production.
+- Sign in / sign up (WorkOS)
+- Today: week strip, hold 3s to complete, undo
+- Habit detail: streak, 35-day heatmap, history
+- Create / edit / archive habits (daily or specific days)
+- Profile: timezone and week-start (Mon/Sun)

@@ -29,9 +29,8 @@ const NAV_ITEMS = [
     label: "New",
     icon: (active: boolean) => (
       <div
-        className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
-          active ? "bg-foreground text-background" : "bg-foreground text-background"
-        }`}
+        className="flex h-11 w-11 items-center justify-center rounded-full bg-foreground text-background"
+        aria-current={active ? "page" : undefined}
       >
         <svg
           width="22"

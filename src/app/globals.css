@@ -8,8 +8,6 @@
   --foreground: #1a1a1a;
   --muted: #8a8a85;
   --accent-primary: #1a1a1a;
-  --accent-secondary: #007aff;
-  --accent-warning: #f5a623;
   --accent-orange: #f5a623;
   --border: rgba(0, 0, 0, 0.08);
   --pill: #ebebe6;
@@ -22,14 +20,11 @@
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-accent: var(--accent-primary);
-  --color-accent-secondary: var(--accent-secondary);
-  --color-accent-warning: var(--accent-warning);
   --color-accent-orange: var(--accent-orange);
   --color-border: var(--border);
   --color-pill: var(--pill);
   --font-sans: var(--font-geist-sans);
   --font-serif: var(--font-instrument-serif);
-  --font-mono: var(--font-geist-mono);
 }
 
 body {
