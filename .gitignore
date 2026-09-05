@@ -17,3 +17,5 @@ coverage/
 *.log
 .DS_Store
 .pnpm-store/
+.vercel
+.env*
