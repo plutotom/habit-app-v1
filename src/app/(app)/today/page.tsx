@@ -7,6 +7,7 @@ import { api } from "@backend/api";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { DateStrip } from "@/components/habits/DateStrip";
 import { HabitCard } from "@/components/habits/HabitCard";
+import { PageLoading, Spinner } from "@/components/ui/Spinner";
 import {
   formatDayHeading,
   getHabitCreatedLocalDay,
@@ -21,9 +22,10 @@ function TodayPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const user = useQuery(api.routes.auth.users.current);
-  const habits = useQuery(api.routes.habits.queries.list, {});
+  const user = useQuery(api.users.current);
+  const habits = useQuery(api.habits.list);
   const timezone = user?.timezone ?? "UTC";
+  const weekStart = user?.weekStart ?? "mon";
   const todayLocal = getLocalDay(timezone);
 
   const dayParam = searchParams.get("day");
@@ -31,16 +33,16 @@ function TodayPageContent() {
     dayParam && dayParam <= todayLocal ? dayParam : todayLocal;
 
   const [weekOffset, setWeekOffset] = useState(() =>
-    weekOffsetForDay(selectedDay, timezone),
+    weekOffsetForDay(selectedDay, timezone, weekStart),
   );
 
   useEffect(() => {
-    setWeekOffset(weekOffsetForDay(selectedDay, timezone));
-  }, [selectedDay, timezone]);
+    setWeekOffset(weekOffsetForDay(selectedDay, timezone, weekStart));
+  }, [selectedDay, timezone, weekStart]);
 
   const weekDays = useMemo(
-    () => getWeekDays(timezone, weekOffset),
-    [timezone, weekOffset],
+    () => getWeekDays(timezone, weekOffset, weekStart),
+    [timezone, weekOffset, weekStart],
   );
 
   const weekDayStrings = useMemo(
@@ -48,13 +50,11 @@ function TodayPageContent() {
     [weekDays],
   );
 
-  const weekCheckins = useQuery(api.routes.checkins.queries.forDayRange, {
+  const weekCheckins = useQuery(api.checkins.forDayRange, {
     days: weekDayStrings,
   });
-  const dayCheckins = useQuery(api.routes.checkins.queries.forToday, {
-    localDay: selectedDay,
-  });
-  const checkin = useMutation(api.routes.checkins.mutations.checkin);
+  const checkin = useMutation(api.checkins.checkin);
+  const undoCheckin = useMutation(api.checkins.undoCheckin);
 
   const [completingId, setCompletingId] = useState<string | null>(null);
 
@@ -67,38 +67,26 @@ function TodayPageContent() {
     }
     const qs = params.toString();
     router.replace(qs ? `/today?${qs}` : "/today", { scroll: false });
-    setWeekOffset(weekOffsetForDay(localDay, timezone));
+    setWeekOffset(weekOffsetForDay(localDay, timezone, weekStart));
   }
 
-  if (
-    user === undefined ||
-    habits === undefined ||
-    dayCheckins === undefined ||
-    weekCheckins === undefined
-  ) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
-      </div>
-    );
+  if (user === undefined || habits === undefined || weekCheckins === undefined) {
+    return <PageLoading />;
   }
 
+  const dayCheckins = weekCheckins.filter((c) => c.localDay === selectedDay);
   const checkinMap = new Map(dayCheckins.map((c) => [c.habitId, c]));
-  const dueHabits = (habits ?? []).filter((h) =>
+  const dueHabits = habits.filter((h) =>
     isHabitActiveOnDay(h, selectedDay, timezone),
   );
   const isToday = selectedDay === todayLocal;
-  const canComplete = isToday;
 
   const earliestHabitDay =
-    habits && habits.length > 0
-      ? habits.reduce(
-          (earliest, h) => {
-            const created = getHabitCreatedLocalDay(h, timezone);
-            return created < earliest ? created : earliest;
-          },
-          getHabitCreatedLocalDay(habits[0], timezone),
-        )
+    habits.length > 0
+      ? habits.reduce((earliest, h) => {
+          const created = getHabitCreatedLocalDay(h, timezone);
+          return created < earliest ? created : earliest;
+        }, getHabitCreatedLocalDay(habits[0], timezone))
       : null;
   const isBeforeAnyHabits =
     earliestHabitDay !== null && selectedDay < earliestHabitDay;
@@ -113,8 +101,6 @@ function TodayPageContent() {
     return c && !c.isSkip;
   }).length;
 
-  const canGoNextWeek = weekOffset < 0;
-
   async function handleComplete(habitId: Id<"habits">) {
     setCompletingId(habitId);
     try {
@@ -124,9 +110,12 @@ function TodayPageContent() {
     }
   }
 
+  async function handleUndo(habitId: Id<"habits">) {
+    await undoCheckin({ habitId, localDay: selectedDay });
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      {/* Top bar */}
       <div className="flex items-center justify-between pt-2">
         <div>
           <h1 className="text-lg font-semibold">
@@ -147,13 +136,11 @@ function TodayPageContent() {
         </Link>
       </div>
 
-      {/* Date strip */}
       <DateStrip
         days={weekDays}
         selectedDay={selectedDay}
-        todayLocal={todayLocal}
         completedDays={completedDays}
-        canGoNextWeek={canGoNextWeek}
+        canGoNextWeek={weekOffset < 0}
         onSelectDay={selectDay}
         onPrevWeek={() => setWeekOffset((o) => o - 1)}
         onNextWeek={() => setWeekOffset((o) => Math.min(o + 1, 0))}
@@ -167,7 +154,6 @@ function TodayPageContent() {
         </p>
       )}
 
-      {/* Habit cards */}
       {dueHabits.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-16 text-center">
           <p className="font-serif text-xl text-muted">
@@ -210,8 +196,9 @@ function TodayPageContent() {
                 description={habit.description}
                 done={done}
                 localDay={selectedDay}
-                canComplete={canComplete}
+                canComplete={isToday}
                 onComplete={() => handleComplete(habit._id)}
+                onUndo={() => handleUndo(habit._id)}
               />
             );
           })}
@@ -220,7 +207,7 @@ function TodayPageContent() {
 
       {completingId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
+          <Spinner className="h-8 w-8" />
         </div>
       )}
     </div>
@@ -229,13 +216,7 @@ function TodayPageContent() {
 
 export default function TodayPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center py-20">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
-        </div>
-      }
-    >
+    <Suspense fallback={<PageLoading />}>
       <TodayPageContent />
     </Suspense>
   );

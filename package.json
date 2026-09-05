@@ -8,13 +8,12 @@
     "dev:backend": "convex dev",
     "build": "next build",
     "start": "next start -p 4021",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p backend"
   },
   "dependencies": {
-    "@convex-dev/workos": "^0.0.3",
     "@workos-inc/authkit-nextjs": "^4.1.4",
     "convex": "^1.42.0",
-    "convex-helpers": "^0.1.120",
     "next": "16.0.7",
     "react": "19.2.0",
     "react-dom": "19.2.0"

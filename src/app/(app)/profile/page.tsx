@@ -3,6 +3,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@backend/api";
 import { useState } from "react";
+import { PageLoading } from "@/components/ui/Spinner";
 
 const TIMEZONES = [
   "UTC",
@@ -22,9 +23,9 @@ const TIMEZONES = [
 ];
 
 export default function ProfilePage() {
-  const user = useQuery(api.routes.auth.users.current);
-  const habits = useQuery(api.routes.habits.queries.list, {});
-  const updateProfile = useMutation(api.routes.auth.users.updateProfile);
+  const user = useQuery(api.users.current);
+  const habits = useQuery(api.habits.list);
+  const updateProfile = useMutation(api.users.updateProfile);
 
   const [timezone, setTimezone] = useState<string | null>(null);
   const [weekStart, setWeekStart] = useState<"mon" | "sun" | null>(null);
@@ -32,11 +33,7 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
 
   if (user === undefined) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-      </div>
-    );
+    return <PageLoading />;
   }
 
   const currentTimezone = timezone ?? user?.timezone ?? "UTC";
@@ -56,8 +53,6 @@ export default function ProfilePage() {
     }
   }
 
-  const activeHabits = habits?.filter((h) => !h.isArchived) ?? [];
-
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold">Profile</h1>
@@ -65,12 +60,11 @@ export default function ProfilePage() {
       <div className="rounded-2xl border border-border bg-card p-4">
         <div className="text-sm text-muted">Email</div>
         <div className="mt-1 font-medium">{user?.email ?? "—"}</div>
-      </div>
-
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <div className="text-sm font-medium text-muted mb-1">Habits</div>
-        <div className="text-2xl font-bold">{activeHabits.length}</div>
-        <div className="text-xs text-muted">active</div>
+        {habits !== undefined && (
+          <div className="mt-3 text-sm text-muted">
+            {habits.length} active habit{habits.length === 1 ? "" : "s"}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-4">
@@ -83,6 +77,9 @@ export default function ProfilePage() {
             onChange={(e) => setTimezone(e.target.value)}
             className="rounded-xl border border-border bg-card px-4 py-3 text-foreground focus:border-accent focus:outline-none"
           >
+            {!TIMEZONES.includes(currentTimezone) && (
+              <option value={currentTimezone}>{currentTimezone}</option>
+            )}
             {TIMEZONES.map((tz) => (
               <option key={tz} value={tz}>
                 {tz}
@@ -97,6 +94,7 @@ export default function ProfilePage() {
             {(["mon", "sun"] as const).map((day) => (
               <button
                 key={day}
+                type="button"
                 onClick={() => setWeekStart(day)}
                 className={`rounded-xl border px-4 py-3 text-sm transition-colors ${
                   currentWeekStart === day
@@ -111,9 +109,10 @@ export default function ProfilePage() {
         </div>
 
         <button
+          type="button"
           onClick={handleSave}
           disabled={saving}
-          className="rounded-full bg-accent py-3 text-sm font-semibold text-background hover:opacity-90 disabled:opacity-50 transition-opacity"
+          className="rounded-full bg-accent py-3 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {saved ? "Saved!" : saving ? "Saving..." : "Save settings"}
         </button>
@@ -121,7 +120,7 @@ export default function ProfilePage() {
 
       <a
         href="/sign-out"
-        className="rounded-full border border-border py-3 text-center text-sm font-semibold text-muted hover:text-foreground hover:bg-card transition-colors"
+        className="rounded-full border border-border py-3 text-center text-sm font-semibold text-muted transition-colors hover:bg-card hover:text-foreground"
       >
         Sign out
       </a>

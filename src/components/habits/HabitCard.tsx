@@ -17,6 +17,7 @@ type HabitCardProps = {
   localDay: string;
   canComplete: boolean;
   onComplete: () => Promise<void>;
+  onUndo: () => Promise<void>;
 };
 
 export function HabitCard({
@@ -27,12 +28,14 @@ export function HabitCard({
   localDay,
   canComplete,
   onComplete,
+  onUndo,
 }: HabitCardProps) {
   const router = useRouter();
-  const streak = useQuery(api.routes.checkins.queries.streak, { habitId });
+  const streak = useQuery(api.checkins.streak, { habitId });
   const [holdProgress, setHoldProgress] = useState(0);
   const [isHolding, setIsHolding] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [isUndoing, setIsUndoing] = useState(false);
   const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const holdStartRef = useRef<number | null>(null);
 
@@ -72,11 +75,21 @@ export function HabitCard({
     }, 16);
   }, [done, isCompleting, canComplete, habitId, localDay, onComplete, router]);
 
+  async function handleUndo(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (isUndoing) return;
+    setIsUndoing(true);
+    try {
+      await onUndo();
+    } finally {
+      setIsUndoing(false);
+    }
+  }
+
   const streakCount = streak?.current ?? 0;
 
   return (
     <div className="relative px-2">
-      {/* Streak badge */}
       <div className="absolute -right-1 top-6 z-10 flex flex-col items-center rounded-2xl bg-gradient-to-b from-[#f5c842] to-[#f0a020] px-2.5 py-2 shadow-sm">
         <svg
           width="14"
@@ -96,15 +109,15 @@ export function HabitCard({
           done ? "opacity-70" : canComplete ? "cursor-pointer touch-none" : ""
         }`}
         onPointerDown={(e) => {
-          if (!canComplete) return;
+          if (!canComplete || done) return;
           e.preventDefault();
           startHold();
         }}
-        onPointerUp={canComplete ? clearHold : undefined}
-        onPointerLeave={canComplete ? clearHold : undefined}
-        onPointerCancel={canComplete ? clearHold : undefined}
+        onPointerUp={canComplete && !done ? clearHold : undefined}
+        onPointerLeave={canComplete && !done ? clearHold : undefined}
+        onPointerCancel={canComplete && !done ? clearHold : undefined}
         onContextMenu={(e) => e.preventDefault()}
-        role={canComplete ? "button" : undefined}
+        role={canComplete && !done ? "button" : undefined}
         aria-label={
           done
             ? "Habit completed"
@@ -114,7 +127,6 @@ export function HabitCard({
         }
         tabIndex={canComplete && !done ? 0 : -1}
       >
-        {/* Hold progress ring */}
         {isHolding && !done && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <svg className="h-48 w-48 -rotate-90" viewBox="0 0 100 100">
@@ -140,7 +152,6 @@ export function HabitCard({
           </div>
         )}
 
-        {/* Menu */}
         <div className="mb-10 flex justify-center gap-2">
           <Link
             href={`/habits/${habitId}`}
@@ -160,7 +171,6 @@ export function HabitCard({
           </Link>
         </div>
 
-        {/* Habit content */}
         <div className="flex flex-col items-center gap-3 text-center">
           <p className="font-serif text-[1.65rem] leading-snug text-foreground">
             {title}
@@ -176,10 +186,21 @@ export function HabitCard({
         </div>
 
         {done && (
-          <div className="mt-8 flex justify-center">
+          <div className="mt-8 flex flex-col items-center gap-3">
             <span className="rounded-full bg-pill px-4 py-1.5 text-sm font-medium text-muted">
               Completed
             </span>
+            {canComplete && (
+              <button
+                type="button"
+                onClick={handleUndo}
+                onPointerDown={(e) => e.stopPropagation()}
+                disabled={isUndoing}
+                className="text-xs font-medium text-muted underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
+              >
+                {isUndoing ? "Undoing…" : "Undo"}
+              </button>
+            )}
           </div>
         )}
 

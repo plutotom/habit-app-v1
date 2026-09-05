@@ -7,29 +7,29 @@ import { useQuery } from "convex/react";
 import { api } from "@backend/api";
 import { Id } from "@backend/dataModel";
 import { getLocalDay, getWeekDays, ordinal } from "@/lib/dates";
-
-const WEEK_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+import { Spinner } from "@/components/ui/Spinner";
 
 function HabitCompletedContent() {
   const { habitId } = useParams<{ habitId: string }>();
   const searchParams = useSearchParams();
 
-  const user = useQuery(api.routes.auth.users.current);
-  const habit = useQuery(api.routes.habits.queries.get, {
+  const user = useQuery(api.users.current);
+  const habit = useQuery(api.habits.get, {
     habitId: habitId as Id<"habits">,
   });
-  const checkins = useQuery(api.routes.checkins.queries.forHabit, {
+  const checkins = useQuery(api.checkins.forHabit, {
     habitId: habitId as Id<"habits">,
     limit: 365,
   });
 
   const timezone = user?.timezone ?? "UTC";
+  const weekStart = user?.weekStart ?? "mon";
   const localDay = searchParams.get("day") ?? getLocalDay(timezone);
 
   if (habit === undefined || checkins === undefined || user === undefined) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#121212]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+        <Spinner className="h-8 w-8" light />
       </div>
     );
   }
@@ -48,19 +48,14 @@ function HabitCompletedContent() {
   const completedCheckins = checkins.filter((c) => !c.isSkip);
   const totalReps = completedCheckins.length;
   const checkinDays = new Set(completedCheckins.map((c) => c.localDay));
-
-  // Build Mon–Sun week containing the completion day
-  const weekDays = getWeekDays(timezone);
-  const todayIndex = weekDays.findIndex((d) => d.localDay === localDay);
+  const weekDays = getWeekDays(timezone, 0, weekStart);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#121212] text-white">
-      {/* Dot pattern background */}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-72 opacity-30"
         style={{
-          backgroundImage:
-            "radial-gradient(circle, #333 1px, transparent 1px)",
+          backgroundImage: "radial-gradient(circle, #333 1px, transparent 1px)",
           backgroundSize: "20px 20px",
         }}
       />
@@ -70,7 +65,6 @@ function HabitCompletedContent() {
           Habit completed!
         </h1>
 
-        {/* Hexagon badge */}
         <div className="relative mt-10 flex items-center justify-center">
           <div className="absolute h-44 w-44 rounded-full bg-gradient-to-b from-[#f5c842]/40 to-[#f0a020]/20 blur-xl" />
           <div className="relative flex h-36 w-36 items-center justify-center rounded-full border-4 border-[#f5c842]/60">
@@ -88,8 +82,7 @@ function HabitCompletedContent() {
           </div>
         </div>
 
-        {/* Motivational text */}
-        <h2 className="font-serif mt-8 text-center text-3xl leading-tight">
+        <h2 className="mt-8 text-center font-serif text-3xl leading-tight">
           {totalReps === 1
             ? "1st Step to Greatness!"
             : `${ordinal(totalReps)} Step to Greatness!`}
@@ -101,15 +94,16 @@ function HabitCompletedContent() {
           </span>
         </p>
 
-        {/* Weekly progress */}
         <div className="mt-10 flex w-full max-w-sm justify-between px-2">
-          {WEEK_LABELS.map((label, i) => {
-            const day = weekDays[i];
-            const completed = day ? checkinDays.has(day.localDay) : false;
-            const isToday = i === todayIndex;
+          {weekDays.map((day) => {
+            const completed = checkinDays.has(day.localDay);
+            const isSelected = day.localDay === localDay;
 
             return (
-              <div key={label} className="flex flex-col items-center gap-2">
+              <div
+                key={day.localDay}
+                className="flex flex-col items-center gap-2"
+              >
                 <div
                   className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${
                     completed
@@ -120,19 +114,16 @@ function HabitCompletedContent() {
                   {completed ? "✓" : ""}
                 </div>
                 <span
-                  className={`text-[10px] ${isToday ? "text-white" : "text-white/50"}`}
+                  className={`text-[10px] ${isSelected ? "text-white" : "text-white/50"}`}
                 >
-                  {label}
+                  {day.label}
                 </span>
-                {isToday && (
-                  <div className="h-1 w-1 rounded-full bg-white" />
-                )}
+                {isSelected && <div className="h-1 w-1 rounded-full bg-white" />}
               </div>
             );
           })}
         </div>
 
-        {/* Actions */}
         <div className="mt-auto flex w-full max-w-sm flex-col gap-3 pt-10">
           <Link
             href={`/habits/${habitId}`}
@@ -157,7 +148,7 @@ export default function HabitCompletedPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-[#121212]">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          <Spinner className="h-8 w-8" light />
         </div>
       }
     >

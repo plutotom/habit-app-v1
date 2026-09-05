@@ -8,18 +8,12 @@ importers:
 
   .:
     dependencies:
-      '@convex-dev/workos':
-        specifier: ^0.0.3
-        version: 0.0.3(convex@1.42.0(@clerk/clerk-react@5.53.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0))(react@19.2.0)
       '@workos-inc/authkit-nextjs':
         specifier: ^4.1.4
         version: 4.1.4(@workos-inc/node@10.7.0)(next@16.0.7(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
       convex:
         specifier: ^1.42.0
         version: 1.42.0(@clerk/clerk-react@5.53.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
-      convex-helpers:
-        specifier: ^0.1.120
-        version: 0.1.120(convex@1.42.0(@clerk/clerk-react@5.53.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0))(react@19.2.0)(typescript@5.9.3)(zod@4.1.12)
       next:
         specifier: 16.0.7
         version: 16.0.7(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -152,12 +146,6 @@ packages:
     resolution: {integrity: sha512-07AoSkx6CF1YjjRFa75HtrmZuVe+8X9WskWZJ6bC1juxYKf0RQfVbNHoEjMuJMh2+Ao6LYrNcrTu8gNwB2O4MA==}
     engines: {node: '>=18.17.0'}
     deprecated: 'This package is no longer supported. Please import types from @clerk/shared/types instead. See the upgrade guide for more info: https://clerk.com/docs/guides/development/upgrading/upgrade-guides/core-3'
-
-  '@convex-dev/workos@0.0.3':
-    resolution: {integrity: sha512-2gHEm8heSpwDakP+s81tXgHuBDUtUOOvt1RjsoiUJpxUmuF4Ln7mWJt+Dr/I0gCP1wuY2r1N62YIafgOXcbx9Q==}
-    peerDependencies:
-      convex: ^1.39.1
-      react: ^18.0.0 || ^19.0.0-0 || ^19.0.0
 
   '@emnapi/core@1.6.0':
     resolution: {integrity: sha512-zq/ay+9fNIJJtJiZxdTnXS20PllcYMX3OE23ESc4HK/bdYu3cOWYVhsOhVnXALfU/uqJIxn5NBPd9z4v+SfoSg==}
@@ -902,9 +890,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@workos-inc/authkit-js@0.20.0':
-    resolution: {integrity: sha512-8+sw8eH1+XCt3NDoIB2bKKbHvq1N7CVFJeyq1uVrUWG83GCIbNNrFwWrocVNfeQJyhKsVVuDpRcp03iSVsK5Gg==}
-
   '@workos-inc/authkit-nextjs@4.1.4':
     resolution: {integrity: sha512-aek26xsKxDVuVJWlWXry/+QWDHu1mW9fLZz3AJeULrxmlzkJJ2OZqS+DhfN48ZIYilDET9w2/ZOeFiABAgNOJw==}
     engines: {node: '>=22.11.0'}
@@ -913,11 +898,6 @@ packages:
       next: ^13.5.9 || ^14.2.26 || ^15.2.3 || ^16
       react: ^18.0 || ^19.0.0
       react-dom: ^18.0 || ^19.0.0
-
-  '@workos-inc/authkit-react@0.16.1':
-    resolution: {integrity: sha512-u8IJsAAyZFFM02+3JhvvNTopSNQoJk/hjOoBlmOkh6j+AnVYrR8hjzJn8j3m9Vi5tRE0il7mpsEDT9fI2xRNjg==}
-    peerDependencies:
-      react: '>=17'
 
   '@workos-inc/node@10.7.0':
     resolution: {integrity: sha512-rffa9znZuIv4yo+9JRxGOLTTSxh0XhOT6jlsktgqEi9MuB9V0VFHRzLd3bTpkq+J9sgrPZNGpvX4aWNfMqt5cQ==}
@@ -1058,28 +1038,6 @@ packages:
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
-
-  convex-helpers@0.1.120:
-    resolution: {integrity: sha512-FPqtmN/10uoxmmhVq0ViNi08AnmHKT/eU1R8+ohmPZoHfg8noZEZCltApY/ASDdhq92o0kLZETggzBvMfHJDLQ==}
-    hasBin: true
-    peerDependencies:
-      '@standard-schema/spec': ^1.0.0
-      convex: ^1.32.0
-      hono: ^4.0.5
-      react: ^17.0.2 || ^18.0.0 || ^19.0.0
-      typescript: ^5.5 || ^6.0.0
-      zod: ^3.25.0 || ^4.0.0
-    peerDependenciesMeta:
-      '@standard-schema/spec':
-        optional: true
-      hono:
-        optional: true
-      react:
-        optional: true
-      typescript:
-        optional: true
-      zod:
-        optional: true
 
   convex@1.42.0:
     resolution: {integrity: sha512-KS1U+YkE7N7jDfucPW28iNehnb9/N5n9RJmdAFNdPIHTeNpbLKNqk1pJHp4ajHyMBAhGmri8Z4S1lc1LjliZWQ==}
@@ -2407,12 +2365,6 @@ snapshots:
       csstype: 3.1.3
     optional: true
 
-  '@convex-dev/workos@0.0.3(convex@1.42.0(@clerk/clerk-react@5.53.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0))(react@19.2.0)':
-    dependencies:
-      '@workos-inc/authkit-react': 0.16.1(react@19.2.0)
-      convex: 1.42.0(@clerk/clerk-react@5.53.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
-      react: 19.2.0
-
   '@emnapi/core@1.6.0':
     dependencies:
       '@emnapi/wasi-threads': 1.1.0
@@ -2979,8 +2931,6 @@ snapshots:
   '@unrs/resolver-binding-win32-x64-msvc@1.11.1':
     optional: true
 
-  '@workos-inc/authkit-js@0.20.0': {}
-
   '@workos-inc/authkit-nextjs@4.1.4(@workos-inc/node@10.7.0)(next@16.0.7(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)':
     dependencies:
       '@sindresorhus/fnv1a': 3.1.0
@@ -2994,11 +2944,6 @@ snapshots:
       valibot: 1.4.1(typescript@5.9.3)
     transitivePeerDependencies:
       - typescript
-
-  '@workos-inc/authkit-react@0.16.1(react@19.2.0)':
-    dependencies:
-      '@workos-inc/authkit-js': 0.20.0
-      react: 19.2.0
 
   '@workos-inc/node@10.7.0': {}
 
@@ -3164,14 +3109,6 @@ snapshots:
   concat-map@0.0.1: {}
 
   convert-source-map@2.0.0: {}
-
-  convex-helpers@0.1.120(convex@1.42.0(@clerk/clerk-react@5.53.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0))(react@19.2.0)(typescript@5.9.3)(zod@4.1.12):
-    dependencies:
-      convex: 1.42.0(@clerk/clerk-react@5.53.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
-    optionalDependencies:
-      react: 19.2.0
-      typescript: 5.9.3
-      zod: 4.1.12
 
   convex@1.42.0(@clerk/clerk-react@5.53.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0):
     dependencies:

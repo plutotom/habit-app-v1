@@ -5,7 +5,6 @@ import type { WeekDay } from "@/lib/dates";
 type DateStripProps = {
   days: WeekDay[];
   selectedDay: string;
-  todayLocal: string;
   completedDays: Set<string>;
   canGoNextWeek: boolean;
   onSelectDay: (localDay: string) => void;
@@ -16,7 +15,6 @@ type DateStripProps = {
 export function DateStrip({
   days,
   selectedDay,
-  todayLocal,
   completedDays,
   canGoNextWeek,
   onSelectDay,
