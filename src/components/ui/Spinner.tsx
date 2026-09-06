@@ -1,22 +1,35 @@
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+
+import { colors } from "@/theme";
+
 export function Spinner({
-  className = "h-6 w-6",
   light = false,
+  size = "large",
 }: {
-  className?: string;
   light?: boolean;
+  size?: "small" | "large";
 }) {
   return (
-    <div
-      className={`animate-spin rounded-full border-2 border-t-transparent ${light ? "border-white" : "border-foreground"} ${className}`}
-      aria-hidden
+    <ActivityIndicator
+      size={size}
+      color={light ? colors.white : colors.foreground}
     />
   );
 }
 
 export function PageLoading() {
   return (
-    <div className="flex items-center justify-center py-20">
+    <View style={styles.wrap}>
       <Spinner />
-    </div>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  wrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 80,
+  },
+});

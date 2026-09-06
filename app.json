@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Habits",
+    "slug": "habit-app-v1",
+    "scheme": "habits",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f5f4ef"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.isaiahproctor.habits",
+      "appleTeamId": "3CVY7K9AJ6",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "buildNumber": "1"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-dev-client",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-font",
+      "expo-updates",
+      "expo-splash-screen"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "extra": {
+      "router": {}
+    }
+  }
+}

@@ -2,30 +2,74 @@
   "name": "habit-app-v1",
   "version": "0.1.0",
   "private": true,
+  "main": "index.ts",
+  "packageManager": "pnpm@10.12.1",
   "scripts": {
-    "dev": "convex dev --start 'next dev -p 4021'",
-    "dev:web": "next dev -p 4021",
+    "dev": "convex dev --start 'expo start --dev-client'",
+    "dev:ios": "expo start --dev-client",
     "dev:backend": "convex dev",
-    "build": "next build",
-    "start": "next start -p 4021",
-    "lint": "eslint",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p backend"
+    "ios": "expo run:ios",
+    "start": "expo start --dev-client",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p backend",
+    "verify": "expo-doctor && tsc --noEmit",
+    "ota:production": "bash ./scripts/publish-ota-production.sh",
+    "release:check-env": "bash ./scripts/load-eas-production-env.sh",
+    "build:ios:production": "bash ./scripts/build-ios.sh",
+    "release:ios:production": "bash ./scripts/release-ios.sh",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,md,yaml,yml}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
-    "@workos-inc/authkit-nextjs": "^4.1.4",
+    "@workos-inc/node": "^8.0.0",
     "convex": "^1.42.0",
-    "next": "16.0.7",
-    "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "expo": "~57.0.20",
+    "expo-constants": "~57.0.17",
+    "expo-crypto": "~57.0.2",
+    "expo-dev-client": "~57.0.18",
+    "expo-font": "~57.0.3",
+    "expo-haptics": "~57.0.2",
+    "expo-linking": "~57.0.9",
+    "expo-router": "~57.0.8",
+    "expo-secure-store": "~57.0.3",
+    "expo-splash-screen": "~57.0.8",
+    "expo-standard-web-crypto": "^57.0.2",
+    "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.3",
+    "expo-updates": "~57.0.21",
+    "expo-web-browser": "~57.0.2",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-reanimated": "4.5.0",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.26.2",
+    "react-native-worklets": "0.10.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@react-native/metro-config": "0.86.3",
+    "@types/node": "^20.19.43",
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "~19.2.7",
+    "eas-cli": "^16.28.0",
     "eslint": "^9",
-    "eslint-config-next": "16.0.7",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "eslint-config-expo": "~57.0.2",
+    "eslint-config-prettier": "^10.1.8",
+    "expo-doctor": "^1.17.14",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.0",
+    "prettier": "^3.6.2",
+    "typescript": "~5.9.2"
   }
 }

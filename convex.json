@@ -3,24 +3,23 @@
   "authKit": {
     "dev": {
       "configure": {
-        "redirectUris": [
-          "http://localhost:4021/callback"
-        ],
+        "redirectUris": ["habits://callback", "http://localhost:4021/callback"],
         "appHomepageUrl": "http://localhost:4021",
         "corsOrigins": ["http://localhost:4021"]
       },
       "localEnvVars": {
         "WORKOS_CLIENT_ID": "${authEnv.WORKOS_CLIENT_ID}",
         "WORKOS_API_KEY": "${authEnv.WORKOS_API_KEY}",
-        "NEXT_PUBLIC_WORKOS_REDIRECT_URI": "http://localhost:4021/callback"
+        "EXPO_PUBLIC_WORKOS_CLIENT_ID": "${authEnv.WORKOS_CLIENT_ID}",
+        "EXPO_PUBLIC_WORKOS_REDIRECT_URI": "habits://callback"
       }
     },
     "prod": {
       "environmentType": "production",
       "configure": {
-        "redirectUris": ["https://habits.plutotom.com/callback"],
+        "redirectUris": ["habits://callback"],
         "appHomepageUrl": "https://habits.plutotom.com",
-        "corsOrigins": ["https://habits.plutotom.com"]
+        "corsOrigins": []
       }
     }
   }

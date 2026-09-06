@@ -1,21 +1,22 @@
 # Habits
 
-Mobile-first habit tracker. Hold-to-complete check-ins, streaks, and a simple schedule (daily or specific weekdays).
+iOS habit tracker. Hold-to-complete check-ins, streaks, and a simple schedule (daily or specific weekdays).
 
-Not a production app — a POC to build on.
+The previous Next.js web app is archived on the `archive/next-web` branch.
 
 ## Stack
 
-- Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4
+- Expo (dev client) · React Native · TypeScript
 - [Convex](https://convex.dev) for the backend and realtime data
-- [WorkOS AuthKit](https://workos.com/authkit) for auth
+- [WorkOS AuthKit](https://workos.com/authkit) via native PKCE (no Next.js)
 
 ## Prerequisites
 
 - Node.js 20+
-- pnpm 9+
+- pnpm 10+
+- Xcode + iOS Simulator
 - A Convex project (`npx convex login` then `npx convex dev`)
-- A WorkOS application with AuthKit enabled
+- A WorkOS application with AuthKit enabled and redirect URI `habits://callback`
 
 ## Environment
 
@@ -25,24 +26,24 @@ Copy `.env.example` to `.env.local` and fill in:
 cp .env.example .env.local
 ```
 
-`pnpm dev` also writes Convex + AuthKit local values via `convex.json`.
-
 ## Develop
 
 ```bash
 pnpm install
-pnpm dev
+pnpm ios
 ```
 
-App: http://localhost:4021
+That builds a native dev client (required for WorkOS PKCE + custom URL scheme) and opens the iOS Simulator.
 
+- `pnpm dev` — Convex + Expo bundler (after the first `pnpm ios`)
 - `pnpm lint` — ESLint
+- `pnpm format` — Prettier
 - `pnpm typecheck` — TypeScript
 
-## What’s in the app
+## Release (iOS)
 
-- Sign in / sign up (WorkOS)
-- Today: week strip, hold 3s to complete, undo
-- Habit detail: streak, 35-day heatmap, history
-- Create / edit / archive habits (daily or specific days)
-- Profile: timezone and week-start (Mon/Sun)
+One-time: `pnpm exec eas init` from the repo root, then fill `.env.mobile.production`.
+
+- `pnpm ota:production` — Convex prod deploy + EAS Update
+- `pnpm build:ios:production` — bump version, local EAS iOS build
+- `pnpm release:ios:production` — submit `.ipa` to Apple + matching OTA

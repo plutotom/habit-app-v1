@@ -1,6 +1,7 @@
-"use client";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { WeekDay } from "@/lib/dates";
+import { colors } from "@/theme";
 
 type DateStripProps = {
   days: WeekDay[];
@@ -22,69 +23,108 @@ export function DateStrip({
   onNextWeek,
 }: DateStripProps) {
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between px-1">
-        <button
-          type="button"
-          onClick={onPrevWeek}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-pill hover:text-foreground"
-          aria-label="Previous week"
-        >
-          ‹
-        </button>
-        <button
-          type="button"
-          onClick={onNextWeek}
+    <View style={styles.wrap}>
+      <View style={styles.arrows}>
+        <Pressable onPress={onPrevWeek} style={styles.arrow} hitSlop={8}>
+          <Text style={styles.arrowText}>‹</Text>
+        </Pressable>
+        <Pressable
+          onPress={onNextWeek}
           disabled={!canGoNextWeek}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-pill hover:text-foreground disabled:opacity-30"
-          aria-label="Next week"
+          style={styles.arrow}
+          hitSlop={8}
         >
-          ›
-        </button>
-      </div>
-
-      <div className="flex items-end justify-between gap-1 px-1">
+          <Text style={[styles.arrowText, !canGoNextWeek && styles.disabled]}>
+            ›
+          </Text>
+        </Pressable>
+      </View>
+      <View style={styles.days}>
         {days.map((day) => {
           const isSelected = day.localDay === selectedDay;
           const hasCompletions = completedDays.has(day.localDay);
-
           return (
-            <button
+            <Pressable
               key={day.localDay}
-              type="button"
               disabled={day.isFuture}
-              onClick={() => onSelectDay(day.localDay)}
-              className="flex flex-1 flex-col items-center gap-1.5 disabled:opacity-35"
+              onPress={() => onSelectDay(day.localDay)}
+              style={[styles.day, day.isFuture && styles.disabled]}
             >
-              <span
-                className={`text-[11px] font-medium tracking-wide ${
-                  isSelected ? "text-foreground" : "text-muted"
-                }`}
-              >
+              <Text style={[styles.dow, isSelected && styles.dowSelected]}>
                 {day.isToday ? "Today" : day.label}
-              </span>
-              <div
-                className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold transition-colors ${
-                  isSelected
-                    ? "bg-foreground text-background"
-                    : hasCompletions
-                      ? "bg-pill text-foreground"
-                      : "text-muted"
-                }`}
+              </Text>
+              <View
+                style={[
+                  styles.date,
+                  isSelected && styles.dateSelected,
+                  !isSelected && hasCompletions && styles.dateDone,
+                ]}
               >
-                {day.date}
-              </div>
-              <div className="flex h-1.5 items-center justify-center">
+                <Text
+                  style={[
+                    styles.dateText,
+                    isSelected && styles.dateTextSelected,
+                  ]}
+                >
+                  {day.date}
+                </Text>
+              </View>
+              <View style={styles.marker}>
                 {isSelected ? (
-                  <div className="h-0.5 w-full max-w-[28px] rounded-full bg-foreground" />
+                  <View style={styles.selectedLine} />
                 ) : hasCompletions ? (
-                  <div className="h-1.5 w-1.5 rounded-full bg-accent-orange" />
+                  <View style={styles.dot} />
                 ) : null}
-              </div>
-            </button>
+              </View>
+            </Pressable>
           );
         })}
-      </div>
-    </div>
+      </View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  wrap: { gap: 12 },
+  arrows: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+  },
+  arrow: {
+    height: 32,
+    width: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  arrowText: { fontSize: 24, color: colors.muted },
+  disabled: { opacity: 0.3 },
+  days: { flexDirection: "row", justifyContent: "space-between", gap: 4 },
+  day: { flex: 1, alignItems: "center", gap: 6 },
+  dow: { fontSize: 11, fontWeight: "500", color: colors.muted },
+  dowSelected: { color: colors.foreground },
+  date: {
+    height: 36,
+    width: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dateSelected: { backgroundColor: colors.foreground },
+  dateDone: { backgroundColor: colors.pill },
+  dateText: { fontSize: 14, fontWeight: "600", color: colors.muted },
+  dateTextSelected: { color: colors.white },
+  marker: { height: 6, alignItems: "center", justifyContent: "center" },
+  selectedLine: {
+    height: 2,
+    width: 28,
+    borderRadius: 1,
+    backgroundColor: colors.foreground,
+  },
+  dot: {
+    height: 6,
+    width: 6,
+    borderRadius: 3,
+    backgroundColor: colors.accentOrange,
+  },
+});

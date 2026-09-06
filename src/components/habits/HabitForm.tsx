@@ -1,6 +1,7 @@
-"use client";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { type FormEvent, useState } from "react";
+import { colors } from "@/theme";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
@@ -39,8 +40,7 @@ export function HabitForm({
     initial?.allowedDays ?? [1, 2, 3, 4, 5],
   );
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function handleSubmit() {
     if (!title.trim()) return;
     await onSubmit({
       title: title.trim(),
@@ -57,92 +57,152 @@ export function HabitForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      <div className="flex flex-col gap-2">
-        <label htmlFor="title" className="text-sm font-medium text-muted">
-          Title <span className="text-accent">*</span>
-        </label>
-        <input
-          id="title"
-          type="text"
+    <View style={styles.form}>
+      <View style={styles.field}>
+        <Text style={styles.label}>
+          Title <Text style={styles.req}>*</Text>
+        </Text>
+        <TextInput
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChangeText={setTitle}
           placeholder="e.g. Morning run"
-          required
-          className="rounded-xl border border-border bg-card px-4 py-3 text-foreground placeholder-muted focus:border-accent focus:outline-none"
+          placeholderTextColor={colors.muted}
+          style={styles.input}
         />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <label htmlFor="description" className="text-sm font-medium text-muted">
-          I want to become
-        </label>
-        <input
-          id="description"
-          type="text"
+      </View>
+      <View style={styles.field}>
+        <Text style={styles.label}>I want to become</Text>
+        <TextInput
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChangeText={setDescription}
           placeholder="Optional — shown on the habit card"
-          className="rounded-xl border border-border bg-card px-4 py-3 text-foreground placeholder-muted focus:border-accent focus:outline-none"
+          placeholderTextColor={colors.muted}
+          style={styles.input}
         />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium text-muted">Schedule</label>
-        <div className="grid grid-cols-2 gap-2">
+      </View>
+      <View style={styles.field}>
+        <Text style={styles.label}>Schedule</Text>
+        <View style={styles.row}>
           {(["daily", "specific_days"] as const).map((s) => (
-            <button
+            <Pressable
               key={s}
-              type="button"
-              onClick={() => setScheduleType(s)}
-              className={`rounded-xl border px-3 py-2 text-sm transition-colors ${
-                scheduleType === s
-                  ? "border-accent bg-accent/20 text-foreground"
-                  : "border-border bg-card text-muted hover:bg-card/60"
-              }`}
+              onPress={() => setScheduleType(s)}
+              style={[styles.choice, scheduleType === s && styles.choiceActive]}
             >
-              {s === "daily" ? "Every day" : "Specific days"}
-            </button>
-          ))}
-        </div>
-        {scheduleType === "specific_days" && (
-          <div className="mt-2 flex gap-2">
-            {DAYS.map((day, i) => (
-              <button
-                key={day}
-                type="button"
-                onClick={() => toggleDay(i)}
-                className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-colors ${
-                  allowedDays.includes(i)
-                    ? "border-accent bg-accent/20 text-foreground"
-                    : "border-border bg-card text-muted"
-                }`}
+              <Text
+                style={[
+                  styles.choiceText,
+                  scheduleType === s && styles.choiceTextActive,
+                ]}
               >
-                {day}
-              </button>
+                {s === "daily" ? "Every day" : "Specific days"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        {scheduleType === "specific_days" ? (
+          <View style={styles.days}>
+            {DAYS.map((day, i) => (
+              <Pressable
+                key={day}
+                onPress={() => toggleDay(i)}
+                style={[
+                  styles.day,
+                  allowedDays.includes(i) && styles.choiceActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.dayText,
+                    allowedDays.includes(i) && styles.choiceTextActive,
+                  ]}
+                >
+                  {day}
+                </Text>
+              </Pressable>
             ))}
-          </div>
-        )}
-      </div>
-
-      {error && <p className="text-sm text-red-400">{error}</p>}
-
-      <div className="flex gap-3 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex-1 rounded-full border border-border py-3 text-sm font-semibold text-muted transition-colors hover:bg-card"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
+          </View>
+        ) : null}
+      </View>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <View style={styles.actions}>
+        <Pressable onPress={onCancel} style={styles.cancel}>
+          <Text style={styles.cancelText}>Cancel</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => void handleSubmit()}
           disabled={saving || !title.trim()}
-          className="flex-1 rounded-full bg-accent py-3 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+          style={[styles.submit, (saving || !title.trim()) && styles.disabled]}
         >
-          {saving ? savingLabel : submitLabel}
-        </button>
-      </div>
-    </form>
+          <Text style={styles.submitText}>
+            {saving ? savingLabel : submitLabel}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  form: { gap: 20 },
+  field: { gap: 8 },
+  label: { fontSize: 14, fontWeight: "500", color: colors.muted },
+  req: { color: colors.accent },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.foreground,
+  },
+  row: { flexDirection: "row", gap: 8 },
+  choice: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  choiceActive: {
+    borderColor: colors.accent,
+    backgroundColor: "rgba(26,26,26,0.08)",
+  },
+  choiceText: { fontSize: 14, color: colors.muted },
+  choiceTextActive: { color: colors.foreground },
+  days: { flexDirection: "row", gap: 6, marginTop: 8 },
+  day: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  dayText: { fontSize: 11, fontWeight: "500", color: colors.muted },
+  error: { fontSize: 14, color: "#f87171" },
+  actions: { flexDirection: "row", gap: 12, paddingTop: 8 },
+  cancel: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  cancelText: { fontSize: 14, fontWeight: "600", color: colors.muted },
+  submit: {
+    flex: 1,
+    backgroundColor: colors.accent,
+    borderRadius: 999,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  submitText: { fontSize: 14, fontWeight: "600", color: colors.white },
+  disabled: { opacity: 0.5 },
+});

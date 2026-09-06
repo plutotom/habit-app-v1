@@ -1,11 +1,17 @@
-"use client";
-
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
+import { useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type GestureResponderEvent,
+} from "react-native";
+
 import { api } from "@backend/api";
-import { Id } from "@backend/dataModel";
+import type { Id } from "@backend/dataModel";
+import { colors, fonts } from "@/theme";
 
 const HOLD_DURATION_MS = 3000;
 
@@ -51,17 +57,14 @@ export function HabitCard({
 
   const startHold = useCallback(() => {
     if (done || isCompleting || !canComplete) return;
-
     holdStartRef.current = Date.now();
     setIsHolding(true);
     setHoldProgress(0);
-
     holdTimerRef.current = setInterval(() => {
       if (!holdStartRef.current) return;
       const elapsed = Date.now() - holdStartRef.current;
       const progress = Math.min(elapsed / HOLD_DURATION_MS, 1);
       setHoldProgress(progress);
-
       if (progress >= 1) {
         if (holdTimerRef.current) {
           clearInterval(holdTimerRef.current);
@@ -69,13 +72,16 @@ export function HabitCard({
         }
         setIsCompleting(true);
         void onComplete().then(() => {
-          router.push(`/habits/${habitId}/completed?day=${localDay}`);
+          router.push({
+            pathname: "/habits/[habitId]/completed",
+            params: { habitId, day: localDay },
+          });
         });
       }
     }, 16);
   }, [done, isCompleting, canComplete, habitId, localDay, onComplete, router]);
 
-  async function handleUndo(e: React.MouseEvent) {
+  async function handleUndo(e: GestureResponderEvent) {
     e.stopPropagation();
     if (isUndoing) return;
     setIsUndoing(true);
@@ -89,137 +95,151 @@ export function HabitCard({
   const streakCount = streak?.current ?? 0;
 
   return (
-    <div className="relative px-2">
-      <div className="absolute -right-1 top-6 z-10 flex flex-col items-center rounded-2xl bg-gradient-to-b from-[#f5c842] to-[#f0a020] px-2.5 py-2 shadow-sm">
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          className="text-foreground"
-          aria-hidden
-        >
-          <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" />
-        </svg>
-        <span className="text-xs font-bold text-foreground">{streakCount}</span>
-      </div>
-
-      <div
-        className={`relative overflow-hidden rounded-[2rem] bg-surface px-8 py-14 shadow-[0_2px_24px_rgba(0,0,0,0.06)] select-none ${
-          done ? "opacity-70" : canComplete ? "cursor-pointer touch-none" : ""
-        }`}
-        onPointerDown={(e) => {
-          if (!canComplete || done) return;
-          e.preventDefault();
-          startHold();
+    <View style={styles.wrap}>
+      <View style={styles.streakBadge}>
+        <Text style={styles.streakIcon}>⚡</Text>
+        <Text style={styles.streakCount}>{streakCount}</Text>
+      </View>
+      <Pressable
+        onPressIn={() => {
+          if (canComplete && !done) startHold();
         }}
-        onPointerUp={canComplete && !done ? clearHold : undefined}
-        onPointerLeave={canComplete && !done ? clearHold : undefined}
-        onPointerCancel={canComplete && !done ? clearHold : undefined}
-        onContextMenu={(e) => e.preventDefault()}
-        role={canComplete && !done ? "button" : undefined}
-        aria-label={
-          done
-            ? "Habit completed"
-            : canComplete
-              ? "Hold for 3 seconds to complete"
-              : "Habit history"
-        }
-        tabIndex={canComplete && !done ? 0 : -1}
+        onPressOut={() => {
+          if (canComplete && !done && !isCompleting) clearHold();
+        }}
+        disabled={!canComplete || done}
+        style={[styles.card, done && styles.cardDone]}
       >
-        {isHolding && !done && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <svg className="h-48 w-48 -rotate-90" viewBox="0 0 100 100">
-              <circle
-                cx="50"
-                cy="50"
-                r="46"
-                fill="none"
-                stroke="rgba(0,0,0,0.06)"
-                strokeWidth="3"
-              />
-              <circle
-                cx="50"
-                cy="50"
-                r="46"
-                fill="none"
-                stroke="#f5a623"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeDasharray={`${holdProgress * 289} 289`}
-              />
-            </svg>
-          </div>
-        )}
-
-        <div className="mb-10 flex justify-center gap-2">
-          <Link
-            href={`/habits/${habitId}`}
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="rounded-full bg-pill px-4 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
+        <View style={styles.actions}>
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/habits/[habitId]",
+                params: { habitId },
+              })
+            }
+            style={styles.pill}
           >
-            Details
-          </Link>
-          <Link
-            href={`/habits/${habitId}/edit`}
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="rounded-full bg-pill px-4 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
+            <Text style={styles.pillText}>Details</Text>
+          </Pressable>
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/habits/[habitId]/edit",
+                params: { habitId },
+              })
+            }
+            style={styles.pill}
           >
-            Edit
-          </Link>
-        </div>
-
-        <div className="flex flex-col items-center gap-3 text-center">
-          <p className="font-serif text-[1.65rem] leading-snug text-foreground">
-            {title}
-          </p>
-          {description && (
+            <Text style={styles.pillText}>Edit</Text>
+          </Pressable>
+        </View>
+        <View style={styles.body}>
+          <Text style={styles.title}>{title}</Text>
+          {description ? (
             <>
-              <p className="text-sm text-muted">I want to become</p>
-              <p className="font-serif text-[1.65rem] leading-snug text-foreground">
-                {description}
-              </p>
+              <Text style={styles.want}>I want to become</Text>
+              <Text style={styles.title}>{description}</Text>
             </>
-          )}
-        </div>
-
-        {done && (
-          <div className="mt-8 flex flex-col items-center gap-3">
-            <span className="rounded-full bg-pill px-4 py-1.5 text-sm font-medium text-muted">
-              Completed
-            </span>
-            {canComplete && (
-              <button
-                type="button"
-                onClick={handleUndo}
-                onPointerDown={(e) => e.stopPropagation()}
-                disabled={isUndoing}
-                className="text-xs font-medium text-muted underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
-              >
-                {isUndoing ? "Undoing…" : "Undo"}
-              </button>
-            )}
-          </div>
-        )}
-
-        {!done && canComplete && !isHolding && !isCompleting && (
-          <p className="mt-10 text-center text-xs text-muted">
-            Press and hold to complete
-          </p>
-        )}
-
-        {!done && !canComplete && (
-          <p className="mt-10 text-center text-xs text-muted">Not completed</p>
-        )}
-
-        {isHolding && !done && (
-          <p className="mt-10 text-center text-xs font-medium text-accent-orange">
-            Keep holding…
-          </p>
-        )}
-      </div>
-    </div>
+          ) : null}
+        </View>
+        {done ? (
+          <View style={styles.doneBlock}>
+            <View style={styles.pill}>
+              <Text style={styles.pillText}>Completed</Text>
+            </View>
+            {canComplete ? (
+              <Pressable onPress={handleUndo} disabled={isUndoing}>
+                <Text style={styles.undo}>
+                  {isUndoing ? "Undoing…" : "Undo"}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+        {!done && canComplete && !isHolding && !isCompleting ? (
+          <Text style={styles.hint}>Press and hold to complete</Text>
+        ) : null}
+        {!done && !canComplete ? (
+          <Text style={styles.hint}>Not completed</Text>
+        ) : null}
+        {isHolding && !done ? (
+          <Text style={styles.holding}>
+            Keep holding… {Math.round(holdProgress * 100)}%
+          </Text>
+        ) : null}
+      </Pressable>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  wrap: { paddingHorizontal: 8, position: "relative" },
+  streakBadge: {
+    position: "absolute",
+    right: -4,
+    top: 24,
+    zIndex: 10,
+    alignItems: "center",
+    borderRadius: 16,
+    backgroundColor: "#f5c842",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  streakIcon: { fontSize: 12 },
+  streakCount: { fontSize: 12, fontWeight: "700", color: colors.foreground },
+  card: {
+    overflow: "hidden",
+    borderRadius: 32,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 32,
+    paddingVertical: 56,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  cardDone: { opacity: 0.7 },
+  actions: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 40,
+  },
+  pill: {
+    borderRadius: 999,
+    backgroundColor: colors.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  pillText: { fontSize: 12, fontWeight: "500", color: colors.muted },
+  body: { alignItems: "center", gap: 12 },
+  title: {
+    fontFamily: fonts.serif,
+    fontSize: 26,
+    lineHeight: 32,
+    textAlign: "center",
+    color: colors.foreground,
+  },
+  want: { fontSize: 14, color: colors.muted },
+  doneBlock: { marginTop: 32, alignItems: "center", gap: 12 },
+  undo: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: colors.muted,
+    textDecorationLine: "underline",
+  },
+  hint: {
+    marginTop: 40,
+    textAlign: "center",
+    fontSize: 12,
+    color: colors.muted,
+  },
+  holding: {
+    marginTop: 40,
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "500",
+    color: colors.accentOrange,
+  },
+});
