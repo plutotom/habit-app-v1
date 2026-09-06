@@ -7,12 +7,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#f5f4ef"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.isaiahproctor.habits",
@@ -29,7 +23,15 @@
       "expo-web-browser",
       "expo-font",
       "expo-updates",
-      "expo-splash-screen"
+      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#f5f4ef"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

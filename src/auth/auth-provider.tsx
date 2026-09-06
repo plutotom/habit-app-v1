@@ -4,11 +4,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
+import { AppState } from "react-native";
 
 import {
   REDIRECT_URI,
@@ -67,6 +69,22 @@ function codeFromUrl(url: string): {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tokenRetry, setTokenRetry] = useState(0);
+  const needsTokenRetry = useRef(false);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") setTokenRetry((value) => value + 1);
+    });
+    // A new fetch callback lets Convex recover after a temporary refresh failure.
+    const timer = setInterval(() => {
+      if (needsTokenRetry.current) setTokenRetry((value) => value + 1);
+    }, 30_000);
+    return () => {
+      subscription.remove();
+      clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     getUser()
@@ -152,13 +170,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async ({ forceRefreshToken }: { forceRefreshToken?: boolean } = {}) => {
       if (!user) return null;
       try {
-        return await getAccessToken(forceRefreshToken === true);
+        const token = await getAccessToken(forceRefreshToken === true);
+        needsTokenRetry.current = false;
+        if (!token) setUser(null);
+        return token;
       } catch (error) {
-        console.error("Failed to get access token:", error);
+        needsTokenRetry.current = true;
+        console.error(
+          `Failed to get access token (retry ${tokenRetry}):`,
+          error,
+        );
         return null;
       }
     },
-    [user],
+    // tokenRetry deliberately changes callback identity after reconnect/foreground.
+    [user, tokenRetry],
   );
 
   const value = useMemo<AuthContextValue>(

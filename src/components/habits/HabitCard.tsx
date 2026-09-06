@@ -1,7 +1,8 @@
-import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
+  AppState,
   Pressable,
   StyleSheet,
   Text,
@@ -9,8 +10,8 @@ import {
   type GestureResponderEvent,
 } from "react-native";
 
-import { api } from "@backend/api";
 import type { Id } from "@backend/dataModel";
+import { useHabitStatistics } from "@/hooks/use-habit-statistics";
 import { colors, fonts } from "@/theme";
 
 const HOLD_DURATION_MS = 3000;
@@ -21,6 +22,7 @@ type HabitCardProps = {
   description?: string;
   done: boolean;
   localDay: string;
+  todayLocal: string;
   canComplete: boolean;
   onComplete: () => Promise<void>;
   onUndo: () => Promise<void>;
@@ -32,18 +34,21 @@ export function HabitCard({
   description,
   done,
   localDay,
+  todayLocal,
   canComplete,
   onComplete,
   onUndo,
 }: HabitCardProps) {
   const router = useRouter();
-  const streak = useQuery(api.checkins.streak, { habitId });
+  const streak = useHabitStatistics(habitId, todayLocal);
   const [holdProgress, setHoldProgress] = useState(0);
   const [isHolding, setIsHolding] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
   const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const holdStartRef = useRef<number | null>(null);
+  const completingRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const clearHold = useCallback(() => {
     if (holdTimerRef.current) {
@@ -55,8 +60,21 @@ export function HabitCard({
     setHoldProgress(0);
   }, []);
 
+  useEffect(() => {
+    mountedRef.current = true;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") clearHold();
+    });
+    return () => {
+      mountedRef.current = false;
+      if (holdTimerRef.current) clearInterval(holdTimerRef.current);
+      subscription.remove();
+    };
+  }, [clearHold]);
+
   const startHold = useCallback(() => {
-    if (done || isCompleting || !canComplete) return;
+    if (done || completingRef.current || !canComplete) return;
+    clearHold();
     holdStartRef.current = Date.now();
     setIsHolding(true);
     setHoldProgress(0);
@@ -71,15 +89,32 @@ export function HabitCard({
           holdTimerRef.current = null;
         }
         setIsCompleting(true);
-        void onComplete().then(() => {
-          router.push({
-            pathname: "/habits/[habitId]/completed",
-            params: { habitId, day: localDay },
+        completingRef.current = true;
+        void onComplete()
+          .then(() => {
+            if (mountedRef.current)
+              router.push({
+                pathname: "/habits/[habitId]/completed",
+                params: { habitId, day: localDay },
+              });
+          })
+          .catch(() => {
+            if (mountedRef.current)
+              Alert.alert(
+                "Couldn't save",
+                "Please check your connection and try again.",
+              );
+          })
+          .finally(() => {
+            completingRef.current = false;
+            if (mountedRef.current) {
+              setIsCompleting(false);
+              clearHold();
+            }
           });
-        });
       }
     }, 16);
-  }, [done, isCompleting, canComplete, habitId, localDay, onComplete, router]);
+  }, [done, canComplete, habitId, localDay, onComplete, router, clearHold]);
 
   async function handleUndo(e: GestureResponderEvent) {
     e.stopPropagation();
@@ -87,12 +122,17 @@ export function HabitCard({
     setIsUndoing(true);
     try {
       await onUndo();
+    } catch {
+      Alert.alert(
+        "Couldn't undo",
+        "Please check your connection and try again.",
+      );
     } finally {
       setIsUndoing(false);
     }
   }
 
-  const streakCount = streak?.current ?? 0;
+  const streakCount = streak?.current ?? "…";
 
   return (
     <View style={styles.wrap}>

@@ -58,6 +58,11 @@ export default function ProfileScreen() {
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } catch {
+      Alert.alert(
+        "Couldn't save settings",
+        "Please check your connection and try again.",
+      );
     } finally {
       setSaving(false);
     }

@@ -12,6 +12,7 @@ import type * as checkins from "../checkins.js";
 import type * as habits from "../habits.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_dates from "../lib/dates.js";
+import type * as lib_statistics from "../lib/statistics.js";
 import type * as users from "../users.js";
 
 import type {
@@ -25,6 +26,7 @@ declare const fullApi: ApiFromModules<{
   habits: typeof habits;
   "lib/auth": typeof lib_auth;
   "lib/dates": typeof lib_dates;
+  "lib/statistics": typeof lib_statistics;
   users: typeof users;
 }>;
 

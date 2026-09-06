@@ -1,10 +1,12 @@
 import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
-import { weekStartValidator } from "./schema";
+import { weekStartValidator, userDocValidator } from "./schema";
+import { validateTimezone } from "../shared/validation";
 
 export const current = query({
   args: {},
+  returns: v.union(v.null(), userDocValidator),
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
@@ -16,6 +18,7 @@ export const current = query({
 });
 
 export const getOrCreate = mutation({
+  returns: v.id("users"),
   args: {
     email: v.optional(v.string()),
     name: v.optional(v.string()),
@@ -30,6 +33,7 @@ export const getOrCreate = mutation({
       .withIndex("by_workosId", (q) => q.eq("workosId", identity.subject))
       .unique();
     if (existing) return existing._id;
+    validateTimezone(args.timezone ?? "UTC");
 
     return await ctx.db.insert("users", {
       workosId: identity.subject,
@@ -43,6 +47,7 @@ export const getOrCreate = mutation({
 });
 
 export const updateProfile = mutation({
+  returns: v.null(),
   args: {
     timezone: v.optional(v.string()),
     weekStart: v.optional(weekStartValidator),
@@ -57,11 +62,13 @@ export const updateProfile = mutation({
       .withIndex("by_workosId", (q) => q.eq("workosId", identity.subject))
       .unique();
     if (!user) throw new Error("User not found");
+    if (args.timezone !== undefined) validateTimezone(args.timezone);
 
     await ctx.db.patch(user._id, {
       ...(args.timezone !== undefined ? { timezone: args.timezone } : {}),
       ...(args.weekStart !== undefined ? { weekStart: args.weekStart } : {}),
       ...(args.name !== undefined ? { name: args.name } : {}),
     });
+    return null;
   },
 });

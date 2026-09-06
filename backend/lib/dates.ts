@@ -1,6 +1,9 @@
 /** Shared date helpers for Convex backend (keep in sync with src/lib/dates.ts). */
 
-export function timestampToLocalDay(timestamp: number, timezone: string): string {
+export function timestampToLocalDay(
+  timestamp: number,
+  timezone: string,
+): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
     year: "numeric",
@@ -10,11 +13,11 @@ export function timestampToLocalDay(timestamp: number, timezone: string): string
 }
 
 export function shiftLocalDay(localDay: string, days: number): string {
-  const d = new Date(localDay + "T12:00:00");
-  d.setDate(d.getDate() + days);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  const d = new Date(localDay + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
@@ -22,7 +25,9 @@ export function getHabitCreatedLocalDay(
   habit: { createdAt: number; createdLocalDay?: string },
   timezone: string,
 ): string {
-  return habit.createdLocalDay ?? timestampToLocalDay(habit.createdAt, timezone);
+  return (
+    habit.createdLocalDay ?? timestampToLocalDay(habit.createdAt, timezone)
+  );
 }
 
 export function isDueOnDay(
@@ -31,8 +36,8 @@ export function isDueOnDay(
 ): boolean {
   if (habit.scheduleType === "daily") return true;
   if (habit.scheduleType === "specific_days" && habit.allowedDays) {
-    const d = new Date(localDay + "T12:00:00");
-    return habit.allowedDays.includes(d.getDay());
+    const d = new Date(localDay + "T12:00:00Z");
+    return habit.allowedDays.includes(d.getUTCDay());
   }
   return true;
 }
@@ -61,14 +66,18 @@ export function prevScheduledDay(
     return shiftLocalDay(day, -1);
   }
 
-  if (scheduleType === "specific_days" && allowedDays && allowedDays.length > 0) {
-    const d = new Date(day + "T12:00:00");
+  if (
+    scheduleType === "specific_days" &&
+    allowedDays &&
+    allowedDays.length > 0
+  ) {
+    const d = new Date(day + "T12:00:00Z");
     for (let i = 1; i <= 7; i++) {
-      d.setDate(d.getDate() - 1);
-      if (allowedDays.includes(d.getDay())) {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
+      d.setUTCDate(d.getUTCDate() - 1);
+      if (allowedDays.includes(d.getUTCDay())) {
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(d.getUTCDate()).padStart(2, "0");
         return `${y}-${m}-${dd}`;
       }
     }

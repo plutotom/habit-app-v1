@@ -10,11 +10,12 @@ import {
   formatCreatedDate,
   formatShortDate,
   getHabitCreatedLocalDay,
-  getLocalDay,
   isHabitActiveOnDay,
   shiftLocalDay,
 } from "@/lib/dates";
 import { colors, fonts } from "@/theme";
+import { useLocalDay } from "@/hooks/use-local-day";
+import { useHabitStatistics } from "@/hooks/use-habit-statistics";
 
 type DayStatus =
   "done" | "skip" | "missed" | "future" | "before_creation" | "not_scheduled";
@@ -36,16 +37,11 @@ export default function HabitDetailScreen() {
   const user = useQuery(api.users.current);
   const habit = useQuery(api.habits.get, { habitId: id });
   const checkins = useQuery(api.checkins.forHabit, { habitId: id, limit: 120 });
-  const streak = useQuery(api.checkins.streak, { habitId: id });
   const timezone = user?.timezone ?? "UTC";
-  const localDay = getLocalDay(timezone);
+  const localDay = useLocalDay(timezone);
+  const streak = useHabitStatistics(id, localDay, !!habit);
 
-  if (
-    habit === undefined ||
-    checkins === undefined ||
-    streak === undefined ||
-    user === undefined
-  ) {
+  if (habit === undefined || checkins === undefined || user === undefined) {
     return <PageLoading />;
   }
 
@@ -109,16 +105,16 @@ export default function HabitDetailScreen() {
       <View style={styles.stats}>
         <View style={styles.stat}>
           <Text style={[styles.statNum, { color: colors.accentOrange }]}>
-            {streak.current}
+            {streak?.current ?? "…"}
           </Text>
           <Text style={styles.statLabel}>Current streak</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statNum}>{streak.longest}</Text>
+          <Text style={styles.statNum}>{streak?.longest ?? "…"}</Text>
           <Text style={styles.statLabel}>Best streak</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statNum}>{completed.length}</Text>
+          <Text style={styles.statNum}>{streak?.total ?? "…"}</Text>
           <Text style={styles.statLabel}>Total reps</Text>
         </View>
       </View>

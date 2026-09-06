@@ -22,6 +22,7 @@ export function getWeekDays(
   timezone: string,
   weekOffset = 0,
   weekStart: WeekStart = "mon",
+  anchorDay?: string,
 ): WeekDay[] {
   const localDayFormatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
@@ -30,29 +31,25 @@ export function getWeekDays(
     day: "2-digit",
   });
   const weekdayFormatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
+    timeZone: "UTC",
     weekday: "short",
   });
   const dayFormatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
+    timeZone: "UTC",
     day: "numeric",
   });
 
-  const todayLocal = localDayFormatter.format(new Date());
-  const today = new Date(todayLocal + "T12:00:00");
-  const dayOfWeek = today.getDay();
+  const todayLocal = anchorDay ?? localDayFormatter.format(new Date());
+  const today = new Date(todayLocal + "T12:00:00Z");
+  const dayOfWeek = today.getUTCDay();
   const startOffset =
-    weekStart === "sun"
-      ? -dayOfWeek
-      : dayOfWeek === 0
-        ? -6
-        : 1 - dayOfWeek;
+    weekStart === "sun" ? -dayOfWeek : dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
   const days: WeekDay[] = [];
   for (let i = 0; i < 7; i++) {
-    const d = new Date(todayLocal + "T12:00:00");
-    d.setDate(d.getDate() + startOffset + weekOffset * 7 + i);
-    const localDay = localDayFormatter.format(d);
+    const d = new Date(todayLocal + "T12:00:00Z");
+    d.setUTCDate(d.getUTCDate() + startOffset + weekOffset * 7 + i);
+    const localDay = d.toISOString().slice(0, 10);
     days.push({
       label: weekdayFormatter.format(d),
       date: Number(dayFormatter.format(d)),
@@ -71,8 +68,8 @@ export function isDueOnDay(
 ): boolean {
   if (habit.scheduleType === "daily") return true;
   if (habit.scheduleType === "specific_days" && habit.allowedDays) {
-    const d = new Date(localDay + "T12:00:00");
-    return habit.allowedDays.includes(d.getDay());
+    const d = new Date(localDay + "T12:00:00Z");
+    return habit.allowedDays.includes(d.getUTCDay());
   }
   return true;
 }
@@ -93,7 +90,9 @@ export function getHabitCreatedLocalDay(
   habit: { createdAt: number; createdLocalDay?: string },
   timezone: string,
 ): string {
-  return habit.createdLocalDay ?? timestampToLocalDay(habit.createdAt, timezone);
+  return (
+    habit.createdLocalDay ?? timestampToLocalDay(habit.createdAt, timezone)
+  );
 }
 
 export function isHabitActiveOnDay(
@@ -140,11 +139,11 @@ export function formatDayHeading(localDay: string, timezone: string): string {
 }
 
 export function shiftLocalDay(localDay: string, days: number): string {
-  const d = new Date(localDay + "T12:00:00");
-  d.setDate(d.getDate() + days);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  const d = new Date(localDay + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
@@ -153,16 +152,12 @@ export function weekOffsetForDay(
   timezone: string,
   weekStart: WeekStart = "mon",
 ): number {
-  if (getWeekDays(timezone, 0, weekStart).some((d) => d.localDay === localDay)) {
-    return 0;
-  }
-
-  for (let offset = -1; offset >= -52; offset--) {
-    const week = getWeekDays(timezone, offset, weekStart);
-    if (week.some((d) => d.localDay === localDay)) return offset;
-  }
-
-  return 0;
+  const firstDay = getWeekDays(timezone, 0, weekStart)[0]!.localDay;
+  return Math.floor(
+    (Date.parse(`${localDay}T12:00:00Z`) -
+      Date.parse(`${firstDay}T12:00:00Z`)) /
+      (7 * 86_400_000),
+  );
 }
 
 export function ordinal(n: number): string {

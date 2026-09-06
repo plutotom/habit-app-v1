@@ -6,8 +6,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@backend/api";
 import type { Id } from "@backend/dataModel";
 import { Spinner } from "@/components/ui/Spinner";
-import { getLocalDay, getWeekDays, ordinal } from "@/lib/dates";
+import { getWeekDays, ordinal } from "@/lib/dates";
 import { colors, fonts } from "@/theme";
+import { useLocalDay } from "@/hooks/use-local-day";
+import { useHabitStatistics } from "@/hooks/use-habit-statistics";
 
 export default function HabitCompletedScreen() {
   const { habitId, day } = useLocalSearchParams<{
@@ -21,7 +23,9 @@ export default function HabitCompletedScreen() {
   const checkins = useQuery(api.checkins.forHabit, { habitId: id, limit: 365 });
   const timezone = user?.timezone ?? "UTC";
   const weekStart = user?.weekStart ?? "mon";
-  const localDay = day ?? getLocalDay(timezone);
+  const todayLocal = useLocalDay(timezone);
+  const localDay = day ?? todayLocal;
+  const statistics = useHabitStatistics(id, todayLocal, !!habit);
 
   if (habit === undefined || checkins === undefined || user === undefined) {
     return (
@@ -43,7 +47,13 @@ export default function HabitCompletedScreen() {
   }
 
   const completedCheckins = checkins.filter((c) => !c.isSkip);
-  const totalReps = completedCheckins.length;
+  if (!statistics)
+    return (
+      <View style={styles.loading}>
+        <Spinner light />
+      </View>
+    );
+  const totalReps = statistics.total;
   const checkinDays = new Set(completedCheckins.map((c) => c.localDay));
   const weekDays = getWeekDays(timezone, 0, weekStart);
 

@@ -3,7 +3,8 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireUser, getUser } from "./lib/auth";
 import { timestampToLocalDay } from "./lib/dates";
-import { scheduleTypeValidator } from "./schema";
+import { scheduleTypeValidator, habitDocValidator } from "./schema";
+import { validateHabit } from "../shared/validation";
 
 const MAX_HABITS = 200;
 
@@ -16,6 +17,7 @@ const habitFields = {
 
 export const list = query({
   args: {},
+  returns: v.array(habitDocValidator),
   handler: async (ctx) => {
     const user = await getUser(ctx);
     if (!user) return [];
@@ -33,6 +35,7 @@ export const list = query({
 
 export const get = query({
   args: { habitId: v.id("habits") },
+  returns: v.union(v.null(), habitDocValidator),
   handler: async (ctx, { habitId }) => {
     const user = await getUser(ctx);
     if (!user) return null;
@@ -45,18 +48,27 @@ export const get = query({
 
 export const create = mutation({
   args: habitFields,
+  returns: v.id("habits"),
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
+    validateHabit(args);
 
     const existing = await ctx.db
       .query("habits")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .withIndex("by_userId_archived", (q) =>
+        q.eq("userId", user._id).eq("isArchived", false),
+      )
       .take(MAX_HABITS);
+
+    if (existing.length >= MAX_HABITS)
+      throw new Error(
+        "Archive a habit before adding more (200 active habits maximum)",
+      );
 
     const createdAt = Date.now();
 
     return await ctx.db.insert("habits", {
-      title: args.title,
+      title: args.title.trim(),
       description: args.description,
       scheduleType: args.scheduleType,
       allowedDays:
@@ -66,33 +78,40 @@ export const create = mutation({
       order: existing.length,
       createdAt,
       createdLocalDay: timestampToLocalDay(createdAt, user.timezone),
+      statisticsReady: true,
     });
   },
 });
 
 export const update = mutation({
+  returns: v.null(),
   args: {
     habitId: v.id("habits"),
     ...habitFields,
   },
   handler: async (ctx, { habitId, ...fields }) => {
     const user = await requireUser(ctx);
+    validateHabit(fields);
 
     const habit = await ctx.db.get(habitId);
     if (!habit || habit.userId !== user._id) throw new Error("Habit not found");
 
     await ctx.db.patch(habitId, {
-      title: fields.title,
+      title: fields.title.trim(),
       description: fields.description,
       scheduleType: fields.scheduleType,
       allowedDays:
-        fields.scheduleType === "specific_days" ? fields.allowedDays : undefined,
+        fields.scheduleType === "specific_days"
+          ? fields.allowedDays
+          : undefined,
     });
+    return null;
   },
 });
 
 export const archive = mutation({
   args: { habitId: v.id("habits") },
+  returns: v.null(),
   handler: async (ctx, { habitId }) => {
     const user = await requireUser(ctx);
 
@@ -100,5 +119,6 @@ export const archive = mutation({
     if (!habit || habit.userId !== user._id) throw new Error("Habit not found");
 
     await ctx.db.patch(habitId, { isArchived: true });
+    return null;
   },
 });

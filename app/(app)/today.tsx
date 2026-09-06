@@ -11,12 +11,13 @@ import { PageLoading, Spinner } from "@/components/ui/Spinner";
 import {
   formatDayHeading,
   getHabitCreatedLocalDay,
-  getLocalDay,
   getWeekDays,
   isHabitActiveOnDay,
   weekOffsetForDay,
 } from "@/lib/dates";
 import { colors } from "@/theme";
+import { useLocalDay } from "@/hooks/use-local-day";
+import { isLocalDay } from "../../shared/validation";
 
 export default function TodayScreen() {
   const router = useRouter();
@@ -26,9 +27,11 @@ export default function TodayScreen() {
   const habits = useQuery(api.habits.list);
   const timezone = user?.timezone ?? "UTC";
   const weekStart = user?.weekStart ?? "mon";
-  const todayLocal = getLocalDay(timezone);
+  const todayLocal = useLocalDay(timezone);
   const selectedDay =
-    dayParam && dayParam <= todayLocal ? dayParam : todayLocal;
+    dayParam && isLocalDay(dayParam) && dayParam <= todayLocal
+      ? dayParam
+      : todayLocal;
 
   const derivedOffset = weekOffsetForDay(selectedDay, timezone, weekStart);
   const [weekOffset, setWeekOffset] = useState(derivedOffset);
@@ -36,15 +39,15 @@ export default function TodayScreen() {
   const displayOffset = offsetDay === selectedDay ? weekOffset : derivedOffset;
 
   const weekDays = useMemo(
-    () => getWeekDays(timezone, displayOffset, weekStart),
-    [timezone, displayOffset, weekStart],
+    () => getWeekDays(timezone, displayOffset, weekStart, todayLocal),
+    [timezone, displayOffset, weekStart, todayLocal],
   );
   const weekDayStrings = useMemo(
     () => weekDays.map((d) => d.localDay),
     [weekDays],
   );
   const weekCheckins = useQuery(api.checkins.forDayRange, {
-    days: weekDayStrings,
+    days: [...new Set([...weekDayStrings, selectedDay])],
   });
   const checkin = useMutation(api.checkins.checkin);
   const undoCheckin = useMutation(api.checkins.undoCheckin);
@@ -177,12 +180,13 @@ export default function TodayScreen() {
               const done = !!c && !c.isSkip;
               return (
                 <HabitCard
-                  key={habit._id}
+                  key={`${habit._id}:${selectedDay}`}
                   habitId={habit._id}
                   title={habit.title}
                   description={habit.description}
                   done={done}
                   localDay={selectedDay}
+                  todayLocal={todayLocal}
                   canComplete={isToday}
                   onComplete={() => handleComplete(habit._id)}
                   onUndo={() => handleUndo(habit._id)}

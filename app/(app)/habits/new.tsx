@@ -5,6 +5,10 @@ import { ScrollView, StyleSheet, Text } from "react-native";
 
 import { api } from "@backend/api";
 import { HabitForm, type HabitFormValues } from "@/components/habits/HabitForm";
+import {
+  requestHabitReminderPermission,
+  syncHabitReminders,
+} from "@/lib/habit-reminders";
 import { colors } from "@/theme";
 
 export default function NewHabitScreen() {
@@ -17,7 +21,16 @@ export default function NewHabitScreen() {
     setSaving(true);
     setError("");
     try {
-      await create(values);
+      const { reminderTimes, ...habitValues } = values;
+      if (reminderTimes.length) await requestHabitReminderPermission();
+      const habitId = await create(habitValues);
+      await syncHabitReminders({
+        habitId,
+        title: values.title,
+        scheduleType: values.scheduleType,
+        allowedDays: values.allowedDays,
+        times: reminderTimes,
+      });
       router.replace("/today");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create habit");

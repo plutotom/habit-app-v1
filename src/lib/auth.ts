@@ -33,6 +33,10 @@ type StoredSession = {
   user: User;
 };
 
+let sessionGeneration = 0;
+let refreshInFlight: Promise<StoredSession | null> | null = null;
+let callbackInFlight: { code: string; promise: Promise<User> } | null = null;
+
 type PkceState = {
   codeVerifier: string;
   expiresAt: number;
@@ -76,7 +80,18 @@ export async function getSignInUrl(): Promise<string> {
   return url;
 }
 
-export async function handleCallback(code: string): Promise<User> {
+export function handleCallback(code: string): Promise<User> {
+  if (callbackInFlight?.code === code) return callbackInFlight.promise;
+  const promise = exchangeCallback(code);
+  callbackInFlight = { code, promise };
+  // Both the linking listener and auth browser may deliver the same callback.
+  void promise.catch(() => {
+    if (callbackInFlight?.promise === promise) callbackInFlight = null;
+  });
+  return promise;
+}
+
+async function exchangeCallback(code: string): Promise<User> {
   requireClientId();
   const pkceData = await SecureStore.getItemAsync(KEYS.PKCE);
   if (!pkceData) {
@@ -101,7 +116,8 @@ export async function handleCallback(code: string): Promise<User> {
     refreshToken: auth.refreshToken,
     user: toUser(auth.user),
   };
-  await SecureStore.setItemAsync(KEYS.SESSION, JSON.stringify(session));
+  sessionGeneration++;
+  await persistSession(session);
   return session.user;
 }
 
@@ -129,10 +145,29 @@ async function persistSession(session: StoredSession): Promise<void> {
   await SecureStore.setItemAsync(KEYS.SESSION, JSON.stringify(session));
 }
 
-async function refreshSession(
+function isRevokedSession(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const details = error as {
+    code?: string;
+    error?: string;
+    status?: number;
+    statusCode?: number;
+    rawData?: { error?: string };
+  };
+  return (
+    details.code === "invalid_grant" ||
+    details.error === "invalid_grant" ||
+    details.rawData?.error === "invalid_grant" ||
+    details.status === 401 ||
+    details.statusCode === 401
+  );
+}
+
+async function performRefresh(
   session: StoredSession,
 ): Promise<StoredSession | null> {
   requireClientId();
+  const generation = sessionGeneration;
   try {
     const refreshed = await workos.userManagement.authenticateWithRefreshToken({
       refreshToken: session.refreshToken,
@@ -142,20 +177,41 @@ async function refreshSession(
       refreshToken: refreshed.refreshToken,
       user: toUser(refreshed.user),
     };
+    if (generation !== sessionGeneration) return null;
     await persistSession(next);
     return next;
-  } catch {
-    await clearSession();
-    return null;
+  } catch (error) {
+    if (generation !== sessionGeneration) return null;
+    if (isRevokedSession(error)) {
+      await clearSession();
+      return null;
+    }
+    // Offline, rate-limited, or provider failure: keep refresh credentials for retry.
+    throw error;
   }
+}
+
+function refreshSession(session: StoredSession): Promise<StoredSession | null> {
+  if (!refreshInFlight) {
+    const pending = performRefresh(session).finally(() => {
+      if (refreshInFlight === pending) refreshInFlight = null;
+    });
+    refreshInFlight = pending;
+  }
+  return refreshInFlight;
 }
 
 export async function getUser(): Promise<User | null> {
   const session = await readSession();
   if (!session) return null;
   if (!isExpired(session.accessToken)) return session.user;
-  const refreshed = await refreshSession(session);
-  return refreshed?.user ?? null;
+  try {
+    const refreshed = await refreshSession(session);
+    return refreshed?.user ?? null;
+  } catch {
+    // Retain the local user during an outage; Convex still requires a valid JWT.
+    return session.user;
+  }
 }
 
 export async function getAccessToken(
@@ -186,6 +242,9 @@ export function getLogoutUrl(sessionId: string): string {
 }
 
 export async function clearSession(): Promise<void> {
+  sessionGeneration++;
+  refreshInFlight = null;
+  callbackInFlight = null;
   await SecureStore.deleteItemAsync(KEYS.SESSION);
   await SecureStore.deleteItemAsync(KEYS.PKCE);
 }

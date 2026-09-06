@@ -32,7 +32,7 @@ else
 fi
 
 echo "📤 Step 2/2: eas update → production channel..."
-pnpm exec eas update --channel production --environment production --message "$MSG"
+pnpm dlx eas-cli@16.28.0 update --channel production --environment production --message "$MSG"
 echo ""
 echo "✅ OTA published."
 echo "⚠️  Users may need to open the app twice for the update to apply."

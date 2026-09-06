@@ -1,5 +1,6 @@
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { type ReactNode, useCallback, useState } from "react";
+import { Text, View } from "react-native";
 
 import { AuthProvider, useAuth } from "@/auth/auth-provider";
 import { UserBootstrap } from "@/components/app/UserBootstrap";
@@ -28,12 +29,19 @@ function ConvexTree({ children }: { children: ReactNode }) {
     convexUrl ? new ConvexReactClient(convexUrl) : null,
   );
 
-  if (!client) return <>{children}</>;
+  if (!client)
+    return (
+      <View style={{ flex: 1, justifyContent: "center", padding: 24 }}>
+        <Text>
+          The app is missing its backend configuration. Set
+          EXPO_PUBLIC_CONVEX_URL and restart the app.
+        </Text>
+      </View>
+    );
 
   return (
     <ConvexProviderWithAuth client={client} useAuth={useAuthFromWorkOS}>
-      <UserBootstrap />
-      {children}
+      <UserBootstrap>{children}</UserBootstrap>
     </ConvexProviderWithAuth>
   );
 }

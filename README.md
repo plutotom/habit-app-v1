@@ -39,10 +39,22 @@ That builds a native dev client (required for WorkOS PKCE + custom URL scheme) a
 - `pnpm lint` — ESLint
 - `pnpm format` — Prettier
 - `pnpm typecheck` — TypeScript
+- `pnpm test` — regression tests for authentication, check-ins, dates, and statistics
+- `pnpm verify` — lint, frontend/backend types, tests, and Expo Doctor
+
+Use the pinned pnpm version (`corepack enable`, or `npx pnpm@10.12.1`). CI also
+exports the iOS bundle. Before shipping a native release, verify sign-in,
+completion/undo, background/resume, and expired-session recovery on an iPhone.
+
+Existing check-ins are preserved. When an older habit is opened, its lifetime
+statistics are backfilled in resumable batches into yearly summaries. Statistics
+show a loading indicator until complete; new completions and undos update the
+summaries in the same transaction. History screens intentionally show recent
+records, while totals and streaks use the full summary.
 
 ## Release (iOS)
 
-One-time: `pnpm exec eas init` from the repo root, then fill `.env.mobile.production`.
+One-time: `pnpm dlx eas-cli@16.28.0 init` from the repo root, then fill `.env.mobile.production`.
 
 - `pnpm ota:production` — Convex prod deploy + EAS Update
 - `pnpm build:ios:production` — bump version, local EAS iOS build
