@@ -12,7 +12,8 @@
       }
     },
     "production": {
-      "channel": "production"
+      "channel": "production",
+      "ios": {}
     }
   },
   "submit": {

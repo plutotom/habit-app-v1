@@ -52,11 +52,11 @@ else
 fi
 
 echo "📤 Step 2/3: Submitting to Apple..."
-pnpm dlx eas-cli@16.28.0 submit --platform ios --path "$IPA_PATH"
+pnpm dlx "eas-cli@${EAS_CLI_VERSION}" submit --platform ios --path "$IPA_PATH"
 echo ""
 
-echo "🔄 Step 3/3: Publishing OTA update for runtime version $VERSION..."
-pnpm dlx eas-cli@16.28.0 update --channel production --environment production --message "v$VERSION release"
+echo "🔄 Step 3/3: Publishing OTA update for runtime version $VERSION (iOS only)..."
+publish_eas_update "v$VERSION release"
 echo ""
 
 echo "✅ Done!"

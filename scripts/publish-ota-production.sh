@@ -31,8 +31,8 @@ else
   echo ""
 fi
 
-echo "📤 Step 2/2: eas update → production channel..."
-pnpm dlx eas-cli@16.28.0 update --channel production --environment production --message "$MSG"
+echo "📤 Step 2/2: eas update → production channel (iOS only)..."
+publish_eas_update "$MSG"
 echo ""
 echo "✅ OTA published."
 echo "⚠️  Users may need to open the app twice for the update to apply."

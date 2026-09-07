@@ -74,7 +74,7 @@ echo ""
 
 echo "🔨 Starting eas build --local --platform ios --profile production..."
 echo ""
-pnpm dlx eas-cli@16.28.0 build --local --platform ios --profile production
+pnpm dlx "eas-cli@${EAS_CLI_VERSION}" build --local --platform ios --profile production
 
 echo ""
 echo "✅ Build complete!"

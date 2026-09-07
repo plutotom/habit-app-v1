@@ -56,6 +56,10 @@ records, while totals and streaks use the full summary.
 
 One-time: `pnpm dlx eas-cli@16.28.0 init` from the repo root, then fill `.env.mobile.production`.
 
-- `pnpm ota:production` — Convex prod deploy + EAS Update
+This app is iOS-only. OTA updates publish to the `production` channel for runtime version `app.json` → `expo.version` (via `runtimeVersion.policy: appVersion`). Users on that native version receive JS updates on next launch.
+
+- `pnpm ota:production` — Convex prod deploy + iOS EAS Update
 - `pnpm build:ios:production` — bump version, local EAS iOS build
-- `pnpm release:ios:production` — submit `.ipa` to Apple + matching OTA
+- `pnpm release:ios:production` — submit `.ipa` to Apple + matching iOS OTA
+
+JS-only hotfix (no new native build): `SKIP_CONVEX_DEPLOY=1 pnpm ota:production -- "describe the fix"`
