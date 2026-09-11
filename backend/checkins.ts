@@ -157,8 +157,9 @@ export const checkin = mutation({
 
     validateLocalDay(localDay);
     if (habit.isArchived) throw new Error("Cannot complete an archived habit");
-    if (localDay !== timestampToLocalDay(Date.now(), user.timezone)) {
-      throw new Error("Only today's habits can be completed");
+    const todayLocal = timestampToLocalDay(Date.now(), user.timezone);
+    if (localDay > todayLocal) {
+      throw new Error("Cannot complete habits in the future");
     }
     const createdDay = getHabitCreatedLocalDay(habit, user.timezone);
     if (localDay < createdDay) {
@@ -206,11 +207,11 @@ export const undoCheckin = mutation({
     if (!habit || habit.userId !== user._id) throw new Error("Habit not found");
 
     validateLocalDay(localDay);
-    if (
-      habit.isArchived ||
-      localDay !== timestampToLocalDay(Date.now(), user.timezone)
-    ) {
-      throw new Error("Only today's active habits can be undone");
+    if (habit.isArchived) {
+      throw new Error("Cannot undo an archived habit");
+    }
+    if (localDay > timestampToLocalDay(Date.now(), user.timezone)) {
+      throw new Error("Cannot undo a future day");
     }
     const existing = await ctx.db
       .query("checkins")

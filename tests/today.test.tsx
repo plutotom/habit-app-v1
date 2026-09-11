@@ -7,6 +7,7 @@ import Today from "../app/(app)/today";
 const mocks = vi.hoisted(() => ({
   days: [] as string[],
   foreground: undefined as undefined | ((state: string) => void),
+  params: {} as { day?: string },
 }));
 vi.mock("convex/react", () => ({
   useMutation: () => vi.fn(),
@@ -35,7 +36,7 @@ vi.mock("convex/react", () => ({
 }));
 vi.mock("expo-router", () => ({
   useRouter: () => ({ push: vi.fn(), setParams: vi.fn() }),
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => mocks.params,
 }));
 vi.mock("@/components/habits/DateStrip", () => ({
   DateStrip: (props: object) => React.createElement("aside", props),
@@ -65,6 +66,7 @@ let renderer: ReactTestRenderer;
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-09-05T18:00:00Z"));
+  mocks.params = {};
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 });
 afterEach(async () => {
@@ -83,6 +85,17 @@ test("browsing another week retains the selected day's completion data", async (
   expect(renderer.root.find((node) => node.type === "article").props.done).toBe(
     true,
   );
+});
+
+test("previous days can still be marked done", async () => {
+  mocks.params = { day: "2026-09-04" };
+  await act(async () => {
+    renderer = create(<Today />);
+  });
+  const card = renderer.root.find((node) => node.type === "article");
+  expect(card.props.localDay).toBe("2026-09-04");
+  expect(card.props.canComplete).toBe(true);
+  expect(card.props.done).toBe(false);
 });
 
 test("returning after midnight refreshes the selected day and week strip", async () => {

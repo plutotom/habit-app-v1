@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@backend/api";
 import type { Id } from "@backend/dataModel";
 import { Spinner } from "@/components/ui/Spinner";
-import { getWeekDays, ordinal } from "@/lib/dates";
+import { getWeekDays, ordinal, weekOffsetForDay } from "@/lib/dates";
 import { colors, fonts } from "@/theme";
 import { useLocalDay } from "@/hooks/use-local-day";
 import { useHabitStatistics } from "@/hooks/use-habit-statistics";
@@ -55,7 +55,12 @@ export default function HabitCompletedScreen() {
     );
   const totalReps = statistics.total;
   const checkinDays = new Set(completedCheckins.map((c) => c.localDay));
-  const weekDays = getWeekDays(timezone, 0, weekStart);
+  const weekDays = getWeekDays(
+    timezone,
+    weekOffsetForDay(localDay, timezone, weekStart),
+    weekStart,
+    todayLocal,
+  );
 
   return (
     <View style={styles.root}>
@@ -103,7 +108,13 @@ export default function HabitCompletedScreen() {
             <Text style={styles.primaryText}>View habit details</Text>
           </Pressable>
           <Pressable
-            onPress={() => router.replace("/today")}
+            onPress={() =>
+              router.replace(
+                localDay === todayLocal
+                  ? "/today"
+                  : { pathname: "/today", params: { day: localDay } },
+              )
+            }
             style={styles.secondary}
           >
             <Text style={styles.secondaryText}>Back to Home</Text>
