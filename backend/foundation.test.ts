@@ -183,6 +183,47 @@ test("legacy history backfills over multiple batches and preserves a 450-day str
   expect(years.every((year) => year.completedDays.length <= 366)).toBe(true);
 });
 
+test("past scheduled days can be completed and undone, but future days cannot", async () => {
+  const { t, owner, habitId } = await setup();
+  await t.run(async (ctx) => {
+    await ctx.db.patch(habitId, { createdLocalDay: "2026-09-01" });
+  });
+  await owner.mutation(api.checkins.checkin, {
+    habitId,
+    localDay: "2026-09-04",
+  });
+  expect(
+    await owner.query(api.checkins.streak, {
+      habitId,
+      todayLocal: "2026-09-05",
+    }),
+  ).toEqual({ current: 1, longest: 1, total: 1 });
+  await owner.mutation(api.checkins.undoCheckin, {
+    habitId,
+    localDay: "2026-09-04",
+  });
+  expect(
+    (
+      await owner.query(api.checkins.streak, {
+        habitId,
+        todayLocal: "2026-09-05",
+      })
+    )?.total,
+  ).toBe(0);
+  await expect(
+    owner.mutation(api.checkins.checkin, {
+      habitId,
+      localDay: "2026-09-06",
+    }),
+  ).rejects.toThrow("Cannot complete habits in the future");
+  await expect(
+    owner.mutation(api.checkins.undoCheckin, {
+      habitId,
+      localDay: "2026-09-06",
+    }),
+  ).rejects.toThrow("Cannot undo a future day");
+});
+
 test("an old best streak survives even when recent completions are beyond the old 400-record window", async () => {
   const { t, owner, userId, habitId } = await setup();
   await t.run(async (ctx) => {

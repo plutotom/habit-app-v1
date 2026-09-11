@@ -150,11 +150,6 @@ export default function TodayScreen() {
           }}
         />
         <View style={styles.rule} />
-        {!isToday ? (
-          <Text style={styles.historyNote}>
-            Viewing history — switch to today to complete habits
-          </Text>
-        ) : null}
         {dueHabits.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>
@@ -187,7 +182,7 @@ export default function TodayScreen() {
                   done={done}
                   localDay={selectedDay}
                   todayLocal={todayLocal}
-                  canComplete={isToday}
+                  canComplete={selectedDay <= todayLocal}
                   onComplete={() => handleComplete(habit._id)}
                   onUndo={() => handleUndo(habit._id)}
                 />
@@ -224,14 +219,6 @@ const styles = StyleSheet.create({
   },
   addText: { color: colors.white, fontWeight: "600", fontSize: 14 },
   rule: { height: 1, backgroundColor: colors.border },
-  historyNote: {
-    backgroundColor: colors.pill,
-    borderRadius: 16,
-    padding: 12,
-    textAlign: "center",
-    fontSize: 14,
-    color: colors.muted,
-  },
   empty: { alignItems: "center", gap: 16, paddingVertical: 64 },
   emptyTitle: { fontSize: 20, color: colors.muted, fontFamily: "Georgia" },
   list: { gap: 40 },
