@@ -1,7 +1,6 @@
 import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { Id } from "../backend/_generated/dataModel";
 import { HabitCard } from "../src/components/habits/HabitCard";
 
 const mocks = vi.hoisted(() => ({
@@ -35,7 +34,7 @@ afterEach(async () => {
 });
 
 const base = {
-  habitId: "habit" as Id<"habits">,
+  habitId: "habit",
   title: "Walk",
   done: false,
   localDay: "2026-09-05",
@@ -64,6 +63,9 @@ test("a failed completion can be retried", async () => {
   });
   await hold();
   expect(mocks.alert).toHaveBeenCalledTimes(1);
+  expect(mocks.alert.mock.calls.flat().join(" ")).not.toMatch(
+    /connection|network/i,
+  );
   expect(mocks.push).not.toHaveBeenCalled();
   await hold();
   expect(complete).toHaveBeenCalledTimes(2);

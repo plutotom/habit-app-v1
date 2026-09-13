@@ -1,13 +1,11 @@
-import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { api } from "@backend/api";
-import type { Id } from "@backend/dataModel";
 import { DateStrip } from "@/components/habits/DateStrip";
 import { HabitCard } from "@/components/habits/HabitCard";
 import { PageLoading, Spinner } from "@/components/ui/Spinner";
+import { useLocalDay } from "@/hooks/use-local-day";
 import {
   formatDayHeading,
   getHabitCreatedLocalDay,
@@ -15,18 +13,24 @@ import {
   isHabitActiveOnDay,
   weekOffsetForDay,
 } from "@/lib/dates";
+import {
+  useLocalCheckinsForDays,
+  useLocalHabits,
+  useLocalMutations,
+  useLocalPreferences,
+} from "@/local/hooks";
+import type { HabitId } from "@/local/types";
 import { colors } from "@/theme";
-import { useLocalDay } from "@/hooks/use-local-day";
 import { isLocalDay } from "../../shared/validation";
 
 export default function TodayScreen() {
   const router = useRouter();
   const { day: dayParam } = useLocalSearchParams<{ day?: string }>();
-
-  const user = useQuery(api.users.current);
-  const habits = useQuery(api.habits.list);
-  const timezone = user?.timezone ?? "UTC";
-  const weekStart = user?.weekStart ?? "mon";
+  const preferences = useLocalPreferences();
+  const habits = useLocalHabits();
+  const { completeHabit, undoCheckin } = useLocalMutations();
+  const timezone = preferences?.timezone ?? "UTC";
+  const weekStart = preferences?.weekStart ?? "mon";
   const todayLocal = useLocalDay(timezone);
   const selectedDay =
     dayParam && isLocalDay(dayParam) && dayParam <= todayLocal
@@ -37,51 +41,48 @@ export default function TodayScreen() {
   const [weekOffset, setWeekOffset] = useState(derivedOffset);
   const [offsetDay, setOffsetDay] = useState(selectedDay);
   const displayOffset = offsetDay === selectedDay ? weekOffset : derivedOffset;
-
   const weekDays = useMemo(
     () => getWeekDays(timezone, displayOffset, weekStart, todayLocal),
     [timezone, displayOffset, weekStart, todayLocal],
   );
   const weekDayStrings = useMemo(
-    () => weekDays.map((d) => d.localDay),
+    () => weekDays.map((day) => day.localDay),
     [weekDays],
   );
-  const weekCheckins = useQuery(api.checkins.forDayRange, {
-    days: [...new Set([...weekDayStrings, selectedDay])],
-  });
-  const checkin = useMutation(api.checkins.checkin);
-  const undoCheckin = useMutation(api.checkins.undoCheckin);
+  const queryDays = useMemo(
+    () => [...new Set([...weekDayStrings, selectedDay])],
+    [weekDayStrings, selectedDay],
+  );
+  const weekCheckins = useLocalCheckinsForDays(queryDays);
   const [completingId, setCompletingId] = useState<string | null>(null);
 
   function selectDay(localDay: string) {
-    if (localDay === todayLocal) {
-      router.setParams({ day: undefined });
-    } else {
-      router.setParams({ day: localDay });
-    }
+    router.setParams(
+      localDay === todayLocal ? { day: undefined } : { day: localDay },
+    );
     setWeekOffset(weekOffsetForDay(localDay, timezone, weekStart));
     setOffsetDay(localDay);
   }
 
-  if (
-    user === undefined ||
-    habits === undefined ||
-    weekCheckins === undefined
-  ) {
+  if (!preferences || habits === undefined || weekCheckins === undefined) {
     return <PageLoading />;
   }
 
-  const dayCheckins = weekCheckins.filter((c) => c.localDay === selectedDay);
-  const checkinMap = new Map(dayCheckins.map((c) => [c.habitId, c]));
-  const dueHabits = habits.filter((h) =>
-    isHabitActiveOnDay(h, selectedDay, timezone),
+  const dayCheckins = weekCheckins.filter(
+    (checkin) => checkin.localDay === selectedDay && !checkin.isSkip,
+  );
+  const checkinMap = new Map(
+    dayCheckins.map((checkin) => [checkin.habitId, checkin]),
+  );
+  const dueHabits = habits.filter((habit) =>
+    isHabitActiveOnDay(habit, selectedDay, timezone),
   );
   const isToday = selectedDay === todayLocal;
   const earliestHabitDay =
     habits.length > 0
       ? habits.reduce(
-          (earliest, h) => {
-            const created = getHabitCreatedLocalDay(h, timezone);
+          (earliest, habit) => {
+            const created = getHabitCreatedLocalDay(habit, timezone);
             return created < earliest ? created : earliest;
           },
           getHabitCreatedLocalDay(habits[0]!, timezone),
@@ -89,28 +90,26 @@ export default function TodayScreen() {
       : null;
   const isBeforeAnyHabits =
     earliestHabitDay !== null && selectedDay < earliestHabitDay;
+  const completedDays = new Set(
+    weekCheckins
+      .filter((checkin) => !checkin.isSkip)
+      .map((checkin) => checkin.localDay),
+  );
+  const completedCount = dueHabits.filter((habit) =>
+    checkinMap.has(habit.id),
+  ).length;
 
-  const completedDays = new Set<string>();
-  for (const c of weekCheckins) {
-    if (!c.isSkip) completedDays.add(c.localDay);
-  }
-
-  const completedCount = dueHabits.filter((h) => {
-    const c = checkinMap.get(h._id);
-    return c && !c.isSkip;
-  }).length;
-
-  async function handleComplete(habitId: Id<"habits">) {
+  async function handleComplete(habitId: HabitId) {
     setCompletingId(habitId);
     try {
-      await checkin({ habitId, localDay: selectedDay });
+      await completeHabit(habitId, selectedDay);
     } finally {
       setCompletingId(null);
     }
   }
 
-  async function handleUndo(habitId: Id<"habits">) {
-    await undoCheckin({ habitId, localDay: selectedDay });
+  async function handleUndo(habitId: HabitId) {
+    await undoCheckin(habitId, selectedDay);
   }
 
   return (
@@ -170,24 +169,20 @@ export default function TodayScreen() {
           </View>
         ) : (
           <View style={styles.list}>
-            {dueHabits.map((habit) => {
-              const c = checkinMap.get(habit._id);
-              const done = !!c && !c.isSkip;
-              return (
-                <HabitCard
-                  key={`${habit._id}:${selectedDay}`}
-                  habitId={habit._id}
-                  title={habit.title}
-                  description={habit.description}
-                  done={done}
-                  localDay={selectedDay}
-                  todayLocal={todayLocal}
-                  canComplete={selectedDay <= todayLocal}
-                  onComplete={() => handleComplete(habit._id)}
-                  onUndo={() => handleUndo(habit._id)}
-                />
-              );
-            })}
+            {dueHabits.map((habit) => (
+              <HabitCard
+                key={`${habit.id}:${selectedDay}`}
+                habitId={habit.id}
+                title={habit.title}
+                description={habit.description}
+                done={checkinMap.has(habit.id)}
+                localDay={selectedDay}
+                todayLocal={todayLocal}
+                canComplete={selectedDay <= todayLocal}
+                onComplete={() => handleComplete(habit.id)}
+                onUndo={() => handleUndo(habit.id)}
+              />
+            ))}
           </View>
         )}
       </ScrollView>

@@ -1,7 +1,7 @@
 import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { getFunctionName } from "convex/server";
+
 import Today from "../app/(app)/today";
 
 const mocks = vi.hoisted(() => ({
@@ -9,30 +9,36 @@ const mocks = vi.hoisted(() => ({
   foreground: undefined as undefined | ((state: string) => void),
   params: {} as { day?: string },
 }));
-vi.mock("convex/react", () => ({
-  useMutation: () => vi.fn(),
-  useQuery: (
-    reference: Parameters<typeof getFunctionName>[0],
-    args?: { days: string[] },
-  ) => {
-    const name = getFunctionName(reference);
-    if (name === "users:current")
-      return { timezone: "America/Chicago", weekStart: "mon" };
-    if (name === "habits:list")
-      return [
-        {
-          _id: "habit",
-          title: "Walk",
-          scheduleType: "daily",
-          createdLocalDay: "2020-01-01",
-          createdAt: 0,
-        },
-      ];
-    mocks.days = args!.days;
-    return args!.days.includes("2026-09-05")
-      ? [{ habitId: "habit", localDay: "2026-09-05", isSkip: false }]
+vi.mock("@/local/hooks", () => ({
+  useLocalPreferences: () => ({
+    timezone: "America/Chicago",
+    weekStart: "mon",
+  }),
+  useLocalHabits: () => [
+    {
+      id: "habit",
+      title: "Walk",
+      scheduleType: "daily",
+      createdLocalDay: "2020-01-01",
+      createdAt: 0,
+    },
+  ],
+  useLocalCheckinsForDays: (days: string[]) => {
+    mocks.days = days;
+    return days.includes("2026-09-05")
+      ? [
+          {
+            id: "habit:2026-09-05",
+            habitId: "habit",
+            localDay: "2026-09-05",
+          },
+        ]
       : [];
   },
+  useLocalMutations: () => ({
+    completeHabit: vi.fn(),
+    undoCheckin: vi.fn(),
+  }),
 }));
 vi.mock("expo-router", () => ({
   useRouter: () => ({ push: vi.fn(), setParams: vi.fn() }),

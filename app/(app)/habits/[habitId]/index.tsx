@@ -1,9 +1,6 @@
-import { useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { api } from "@backend/api";
-import type { Id } from "@backend/dataModel";
 import { PageLoading } from "@/components/ui/Spinner";
 import {
   formatCompletedAt,
@@ -16,6 +13,11 @@ import {
 import { colors, fonts } from "@/theme";
 import { useLocalDay } from "@/hooks/use-local-day";
 import { useHabitStatistics } from "@/hooks/use-habit-statistics";
+import {
+  useLocalHabit,
+  useLocalHabitCheckins,
+  useLocalPreferences,
+} from "@/local/hooks";
 
 type DayStatus =
   "done" | "skip" | "missed" | "future" | "before_creation" | "not_scheduled";
@@ -32,16 +34,20 @@ const statusColor: Record<DayStatus, string> = {
 export default function HabitDetailScreen() {
   const { habitId } = useLocalSearchParams<{ habitId: string }>();
   const router = useRouter();
-  const id = habitId as Id<"habits">;
+  const id = habitId;
 
-  const user = useQuery(api.users.current);
-  const habit = useQuery(api.habits.get, { habitId: id });
-  const checkins = useQuery(api.checkins.forHabit, { habitId: id, limit: 120 });
-  const timezone = user?.timezone ?? "UTC";
+  const preferences = useLocalPreferences();
+  const habit = useLocalHabit(id);
+  const checkins = useLocalHabitCheckins(id, 120);
+  const timezone = preferences?.timezone ?? "UTC";
   const localDay = useLocalDay(timezone);
   const streak = useHabitStatistics(id, localDay, !!habit);
 
-  if (habit === undefined || checkins === undefined || user === undefined) {
+  if (
+    habit === undefined ||
+    checkins === undefined ||
+    preferences === undefined
+  ) {
     return <PageLoading />;
   }
 
@@ -147,7 +153,7 @@ export default function HabitDetailScreen() {
       ) : (
         completed.slice(0, 30).map((c) => (
           <Pressable
-            key={c._id}
+            key={c.id}
             onPress={() =>
               router.push({ pathname: "/today", params: { day: c.localDay } })
             }
@@ -155,7 +161,7 @@ export default function HabitDetailScreen() {
           >
             <Text style={styles.historyDay}>{formatShortDate(c.localDay)}</Text>
             <Text style={styles.muted}>
-              {formatCompletedAt(c.completedAt, timezone)}
+              {formatCompletedAt(c.completedAt ?? c.updatedAt, timezone)}
             </Text>
           </Pressable>
         ))

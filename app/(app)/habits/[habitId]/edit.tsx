@@ -1,10 +1,7 @@
-import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text } from "react-native";
 
-import { api } from "@backend/api";
-import type { Id } from "@backend/dataModel";
 import { HabitForm, type HabitFormValues } from "@/components/habits/HabitForm";
 import { PageLoading } from "@/components/ui/Spinner";
 import {
@@ -14,15 +11,15 @@ import {
   syncHabitReminders,
   type ReminderTime,
 } from "@/lib/habit-reminders";
+import { useLocalHabit, useLocalMutations } from "@/local/hooks";
 import { colors } from "@/theme";
 
 export default function EditHabitScreen() {
   const { habitId } = useLocalSearchParams<{ habitId: string }>();
   const router = useRouter();
-  const id = habitId as Id<"habits">;
-  const habit = useQuery(api.habits.get, { habitId: id });
-  const update = useMutation(api.habits.update);
-  const archive = useMutation(api.habits.archive);
+  const id = habitId;
+  const habit = useLocalHabit(id);
+  const { updateHabit, archiveHabit } = useLocalMutations();
   const [saving, setSaving] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [error, setError] = useState("");
@@ -42,17 +39,26 @@ export default function EditHabitScreen() {
     try {
       const { reminderTimes: times, ...habitValues } = values;
       if (times.length) await requestHabitReminderPermission();
-      await update({ habitId: id, ...habitValues });
-      await syncHabitReminders({
-        habitId: id,
-        title: values.title,
-        scheduleType: values.scheduleType,
-        allowedDays: values.allowedDays,
-        times,
-      });
+      await updateHabit(id, habitValues);
+      try {
+        await syncHabitReminders({
+          habitId: id,
+          title: values.title,
+          scheduleType: values.scheduleType,
+          allowedDays: values.allowedDays,
+          times,
+        });
+      } catch {
+        Alert.alert(
+          "Changes saved",
+          "The habit was updated on this phone, but its reminder couldn’t be scheduled. Please try saving again.",
+        );
+      }
       setSaving(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+      setError(
+        err instanceof Error ? err.message : "Couldn’t save on this phone.",
+      );
       setSaving(false);
     }
   }
@@ -67,12 +73,14 @@ export default function EditHabitScreen() {
             setArchiving(true);
             setError("");
             try {
-              await archive({ habitId: id });
-              await cancelHabitReminders(id);
+              await archiveHabit(id);
+              await cancelHabitReminders(id).catch(() => undefined);
               router.replace("/today");
             } catch (err) {
               setError(
-                err instanceof Error ? err.message : "Failed to archive",
+                err instanceof Error
+                  ? err.message
+                  : "Couldn’t save on this phone.",
               );
               setArchiving(false);
             }

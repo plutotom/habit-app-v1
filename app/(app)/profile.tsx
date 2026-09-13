@@ -1,4 +1,3 @@
-import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import {
   Alert,
@@ -9,9 +8,12 @@ import {
   View,
 } from "react-native";
 
-import { api } from "@backend/api";
-import { useAuth } from "@/auth/auth-provider";
 import { PageLoading } from "@/components/ui/Spinner";
+import {
+  useLocalHabits,
+  useLocalMutations,
+  useLocalPreferences,
+} from "@/local/hooks";
 import { colors } from "@/theme";
 
 const TIMEZONES = [
@@ -32,19 +34,18 @@ const TIMEZONES = [
 ];
 
 export default function ProfileScreen() {
-  const { signOut, user: authUser } = useAuth();
-  const user = useQuery(api.users.current);
-  const habits = useQuery(api.habits.list);
-  const updateProfile = useMutation(api.users.updateProfile);
+  const preferences = useLocalPreferences();
+  const habits = useLocalHabits();
+  const { updatePreferences } = useLocalMutations();
   const [timezone, setTimezone] = useState<string | null>(null);
   const [weekStart, setWeekStart] = useState<"mon" | "sun" | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  if (user === undefined) return <PageLoading />;
+  if (!preferences || habits === undefined) return <PageLoading />;
 
-  const currentTimezone = timezone ?? user?.timezone ?? "UTC";
-  const currentWeekStart = weekStart ?? user?.weekStart ?? "mon";
+  const currentTimezone = timezone ?? preferences.timezone;
+  const currentWeekStart = weekStart ?? preferences.weekStart;
   const zones = TIMEZONES.includes(currentTimezone)
     ? TIMEZONES
     : [currentTimezone, ...TIMEZONES];
@@ -52,7 +53,7 @@ export default function ProfileScreen() {
   async function handleSave() {
     setSaving(true);
     try {
-      await updateProfile({
+      await updatePreferences({
         timezone: currentTimezone,
         weekStart: currentWeekStart,
       });
@@ -60,8 +61,8 @@ export default function ProfileScreen() {
       setTimeout(() => setSaved(false), 2000);
     } catch {
       Alert.alert(
-        "Couldn't save settings",
-        "Please check your connection and try again.",
+        "Couldn’t save settings",
+        "Couldn’t save on this phone. Please try again.",
       );
     } finally {
       setSaving(false);
@@ -72,32 +73,28 @@ export default function ProfileScreen() {
     <ScrollView contentContainerStyle={styles.scroll}>
       <Text style={styles.h1}>Profile</Text>
       <View style={styles.card}>
-        <Text style={styles.muted}>Email</Text>
-        <Text style={styles.email}>
-          {user?.email ?? authUser?.email ?? "—"}
+        <Text style={styles.email}>Using without an account</Text>
+        <Text style={styles.muted}>Your data is stored on this phone.</Text>
+        <Text style={styles.muted}>
+          {habits.length} active habit{habits.length === 1 ? "" : "s"}
         </Text>
-        {habits !== undefined ? (
-          <Text style={styles.muted}>
-            {habits.length} active habit{habits.length === 1 ? "" : "s"}
-          </Text>
-        ) : null}
       </View>
       <Text style={styles.h2}>Settings</Text>
       <Text style={styles.label}>Timezone</Text>
       <ScrollView horizontal style={styles.zoneRow}>
-        {zones.map((tz) => (
+        {zones.map((zone) => (
           <Pressable
-            key={tz}
-            onPress={() => setTimezone(tz)}
-            style={[styles.chip, currentTimezone === tz && styles.chipActive]}
+            key={zone}
+            onPress={() => setTimezone(zone)}
+            style={[styles.chip, currentTimezone === zone && styles.chipActive]}
           >
             <Text
               style={[
                 styles.chipText,
-                currentTimezone === tz && styles.chipTextActive,
+                currentTimezone === zone && styles.chipTextActive,
               ]}
             >
-              {tz}
+              {zone}
             </Text>
           </Pressable>
         ))}
@@ -133,20 +130,10 @@ export default function ProfileScreen() {
           {saved ? "Saved!" : saving ? "Saving..." : "Save settings"}
         </Text>
       </Pressable>
-      <Pressable
-        onPress={() => {
-          Alert.alert("Sign out", "Sign out of Habits?", [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Sign out",
-              style: "destructive",
-              onPress: () => void signOut(),
-            },
-          ]);
-        }}
-        style={styles.signOut}
-      >
-        <Text style={styles.signOutText}>Sign out</Text>
+      <Pressable disabled style={styles.connect}>
+        <Text style={styles.connectText}>
+          Connect account — coming in the sync update
+        </Text>
       </Pressable>
     </ScrollView>
   );
@@ -205,12 +192,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveText: { color: colors.white, fontWeight: "600" },
-  signOut: {
+  connect: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 999,
     paddingVertical: 12,
     alignItems: "center",
+    opacity: 0.55,
   },
-  signOutText: { color: colors.muted, fontWeight: "600" },
+  connectText: { color: colors.muted, fontWeight: "600" },
 });

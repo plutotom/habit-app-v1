@@ -10,14 +10,14 @@ import {
   type GestureResponderEvent,
 } from "react-native";
 
-import type { Id } from "@backend/dataModel";
 import { useHabitStatistics } from "@/hooks/use-habit-statistics";
+import type { HabitId } from "@/local/types";
 import { colors, fonts } from "@/theme";
 
 const HOLD_DURATION_MS = 3000;
 
 type HabitCardProps = {
-  habitId: Id<"habits">;
+  habitId: HabitId;
   title: string;
   description?: string;
   done: boolean;
@@ -102,7 +102,7 @@ export function HabitCard({
             if (mountedRef.current)
               Alert.alert(
                 "Couldn't save",
-                "Please check your connection and try again.",
+                "Couldn’t save on this phone. Please try again.",
               );
           })
           .finally(() => {
@@ -125,7 +125,7 @@ export function HabitCard({
     } catch {
       Alert.alert(
         "Couldn't undo",
-        "Please check your connection and try again.",
+        "Couldn’t save on this phone. Please try again.",
       );
     } finally {
       setIsUndoing(false);

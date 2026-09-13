@@ -1,25 +1,26 @@
+import { useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { useAuth } from "@/auth/auth-provider";
 import { colors, fonts } from "@/theme";
 
 export default function SignInScreen() {
-  const { signIn, loading } = useAuth();
+  const router = useRouter();
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.body}>
         <Text style={styles.title}>Habits</Text>
         <Text style={styles.sub}>Simple tracking. Hold to complete.</Text>
+        <Text style={styles.note}>
+          Account connection is coming in the sync update. You can use every
+          core habit feature offline now.
+        </Text>
         <Pressable
-          onPress={() => void signIn()}
-          disabled={loading}
-          style={[styles.button, loading && styles.disabled]}
+          onPress={() => router.replace("/today")}
+          style={styles.button}
         >
-          <Text style={styles.buttonText}>
-            {loading ? "Signing in…" : "Sign in with WorkOS"}
-          </Text>
+          <Text style={styles.buttonText}>Continue offline</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -40,7 +41,14 @@ const styles = StyleSheet.create({
     fontSize: 40,
     color: colors.foreground,
   },
-  sub: { fontSize: 16, color: colors.muted, marginBottom: 24 },
+  sub: { fontSize: 16, color: colors.muted, marginBottom: 12 },
+  note: {
+    maxWidth: 320,
+    textAlign: "center",
+    lineHeight: 20,
+    color: colors.muted,
+    marginBottom: 24,
+  },
   button: {
     backgroundColor: colors.foreground,
     borderRadius: 999,
@@ -48,5 +56,4 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   buttonText: { color: colors.white, fontSize: 16, fontWeight: "600" },
-  disabled: { opacity: 0.6 },
 });

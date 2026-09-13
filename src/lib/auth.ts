@@ -1,9 +1,11 @@
 /**
  * WorkOS AuthKit public-client PKCE flow.
  * Follows https://github.com/workos/expo-authkit-example
- * Requires the WebCrypto polyfill in src/polyfills.ts.
+ * Requires ensureWebCryptoPolyfills() before PKCE calls.
  */
 import { WorkOS } from "@workos-inc/node";
+
+import { ensureWebCryptoPolyfills } from "@/polyfills";
 import * as SecureStore from "expo-secure-store";
 
 const WORKOS_CLIENT_ID = process.env.EXPO_PUBLIC_WORKOS_CLIENT_ID ?? "";
@@ -65,6 +67,7 @@ function toUser(workosUser: {
 }
 
 export async function getSignInUrl(): Promise<string> {
+  ensureWebCryptoPolyfills();
   requireClientId();
   const { url, codeVerifier } =
     await workos.userManagement.getAuthorizationUrlWithPKCE({
@@ -92,6 +95,7 @@ export function handleCallback(code: string): Promise<User> {
 }
 
 async function exchangeCallback(code: string): Promise<User> {
+  ensureWebCryptoPolyfills();
   requireClientId();
   const pkceData = await SecureStore.getItemAsync(KEYS.PKCE);
   if (!pkceData) {

@@ -1,15 +1,17 @@
-import { useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { api } from "@backend/api";
-import type { Id } from "@backend/dataModel";
 import { Spinner } from "@/components/ui/Spinner";
 import { getWeekDays, ordinal, weekOffsetForDay } from "@/lib/dates";
 import { colors, fonts } from "@/theme";
 import { useLocalDay } from "@/hooks/use-local-day";
 import { useHabitStatistics } from "@/hooks/use-habit-statistics";
+import {
+  useLocalHabit,
+  useLocalHabitCheckins,
+  useLocalPreferences,
+} from "@/local/hooks";
 
 export default function HabitCompletedScreen() {
   const { habitId, day } = useLocalSearchParams<{
@@ -17,17 +19,21 @@ export default function HabitCompletedScreen() {
     day?: string;
   }>();
   const router = useRouter();
-  const id = habitId as Id<"habits">;
-  const user = useQuery(api.users.current);
-  const habit = useQuery(api.habits.get, { habitId: id });
-  const checkins = useQuery(api.checkins.forHabit, { habitId: id, limit: 365 });
-  const timezone = user?.timezone ?? "UTC";
-  const weekStart = user?.weekStart ?? "mon";
+  const id = habitId;
+  const preferences = useLocalPreferences();
+  const habit = useLocalHabit(id);
+  const checkins = useLocalHabitCheckins(id, 365);
+  const timezone = preferences?.timezone ?? "UTC";
+  const weekStart = preferences?.weekStart ?? "mon";
   const todayLocal = useLocalDay(timezone);
   const localDay = day ?? todayLocal;
   const statistics = useHabitStatistics(id, todayLocal, !!habit);
 
-  if (habit === undefined || checkins === undefined || user === undefined) {
+  if (
+    habit === undefined ||
+    checkins === undefined ||
+    preferences === undefined
+  ) {
     return (
       <View style={styles.loading}>
         <Spinner light />
