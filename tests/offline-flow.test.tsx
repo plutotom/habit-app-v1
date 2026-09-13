@@ -2,7 +2,6 @@ import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { beforeEach, expect, test, vi } from "vitest";
 
-import SignIn from "../app/(auth)/sign-in";
 import Index from "../app/index";
 import NewHabit from "../app/(app)/habits/new";
 
@@ -49,7 +48,7 @@ beforeEach(() => {
   mocks.alert.mockReset();
 });
 
-test("the root and direct sign-in route continue to the offline app", async () => {
+test("the root route opens the offline app", async () => {
   let renderer: ReactTestRenderer;
   await act(async () => {
     renderer = create(<Index />);
@@ -57,15 +56,6 @@ test("the root and direct sign-in route continue to the offline app", async () =
   expect(
     renderer!.root.find((node) => String(node.type) === "redirect").props.href,
   ).toBe("/today");
-
-  await act(async () => {
-    renderer!.update(<SignIn />);
-  });
-  const continueButton = renderer!.root.find(
-    (node) => String(node.type) === "button",
-  );
-  await act(async () => continueButton.props.onPress());
-  expect(mocks.replace).toHaveBeenCalledWith("/today");
   await act(async () => renderer!.unmount());
 });
 

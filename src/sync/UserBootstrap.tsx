@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { PageLoading } from "@/components/ui/Spinner";
 
 import { api } from "@backend/api";
-import { useAuth } from "@/auth/auth-provider";
+import { useAuth } from "@/sync/auth-provider";
 
 export function UserBootstrap({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useConvexAuth();

@@ -3,6 +3,9 @@ import { createLocalId } from "@/local/ids";
 export const LOCAL_DATABASE_NAME = "habit-local-v1.db";
 export const LOCAL_DATABASE_VERSION = 1;
 
+// Future sync: local_workspaces.kind, remote_account_id, and local_sync_outbox
+// are scaffolded for account import but have no consumer in the guest-first app.
+
 export type SqlValue = string | number | null;
 
 export interface LocalDatabase {

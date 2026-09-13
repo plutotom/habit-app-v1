@@ -117,7 +117,7 @@ test("habit reminders schedule, reschedule, and cancel from local state", async 
   expect(await getHabitReminderTimes("local-habit-id")).toEqual([]);
 });
 
-test("reminders for habits the account no longer has are cancelled", async () => {
+test("reminders for deleted habits are cancelled", async () => {
   seedReminders({ kept: ["kept-1"], deleted: ["deleted-1", "deleted-2"] });
   const { reconcileHabitReminders } = await import("@/lib/habit-reminders");
 
@@ -137,7 +137,7 @@ test("scheduled reminders the app no longer tracks are cancelled", async () => {
   expect(mocks.scheduled.size).toBe(0);
 });
 
-test("a signed-out device keeps no reminders", async () => {
+test("cancelAllHabitReminders clears stored and scheduled reminders", async () => {
   seedReminders({ habit: ["habit-1"] });
   const { cancelAllHabitReminders } = await import("@/lib/habit-reminders");
 

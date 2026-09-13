@@ -6,10 +6,10 @@ import { Spinner } from "@/components/ui/Spinner";
 import { getWeekDays, ordinal, weekOffsetForDay } from "@/lib/dates";
 import { colors, fonts } from "@/theme";
 import { useLocalDay } from "@/hooks/use-local-day";
-import { useHabitStatistics } from "@/hooks/use-habit-statistics";
 import {
   useLocalHabit,
   useLocalHabitCheckins,
+  useLocalHabitStatistics,
   useLocalPreferences,
 } from "@/local/hooks";
 
@@ -27,7 +27,7 @@ export default function HabitCompletedScreen() {
   const weekStart = preferences?.weekStart ?? "mon";
   const todayLocal = useLocalDay(timezone);
   const localDay = day ?? todayLocal;
-  const statistics = useHabitStatistics(id, todayLocal, !!habit);
+  const statistics = useLocalHabitStatistics(id, todayLocal, !!habit);
 
   if (
     habit === undefined ||

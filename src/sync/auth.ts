@@ -5,7 +5,7 @@
  */
 import { WorkOS } from "@workos-inc/node";
 
-import { ensureWebCryptoPolyfills } from "@/polyfills";
+import { ensureWebCryptoPolyfills } from "@/sync/polyfills";
 import * as SecureStore from "expo-secure-store";
 
 const WORKOS_CLIENT_ID = process.env.EXPO_PUBLIC_WORKOS_CLIENT_ID ?? "";

@@ -82,13 +82,13 @@ export function cancelHabitReminders(habitId: string) {
 }
 /**
  * Cancels every scheduled reminder that no active habit owns. Reminders live on
- * the device while habits live in the account, so the two drift apart whenever
- * habits disappear without the app cancelling their reminders first.
+ * the device while habits live in SQLite, so the two drift apart whenever
+ * habits are deleted without the app cancelling their reminders first.
  */
 export function reconcileHabitReminders(activeHabitIds: string[]) {
   return runExclusive(() => reconcileReminders(activeHabitIds));
 }
-/** Clears every reminder on the device, for when no account owns them. */
+/** Clears every reminder on the device. Reserved for future sign-out in sync. */
 export function cancelAllHabitReminders() {
   return runExclusive(() => cancelAllReminders());
 }

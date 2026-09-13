@@ -122,6 +122,7 @@ function normalizeHabitFields(fields: HabitFields): HabitFields {
   };
 }
 
+// Future sync: every mutation enqueues a snapshot; no upload consumer yet.
 async function writeOutbox(
   db: LocalDatabase,
   workspaceId: string,

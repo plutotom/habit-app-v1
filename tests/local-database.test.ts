@@ -3,10 +3,13 @@
 import { afterEach, expect, test } from "vitest";
 
 import {
+  getActiveWorkspaceId,
   initializeLocalDatabase,
   LOCAL_DATABASE_VERSION,
 } from "../src/local/database";
 import { createLocalId } from "../src/local/ids";
+import { LocalHabitRepository } from "../src/local/repository";
+import { seedV1DatabaseWithSampleHabit } from "./fixtures/seed-v1-database";
 import { NodeSqliteDatabase } from "./node-sqlite";
 
 const databases: NodeSqliteDatabase[] = [];
@@ -99,6 +102,30 @@ test("a newer local database version fails clearly", async () => {
   await expect(initializeLocalDatabase(database)).rejects.toThrow(
     "Update the app before continuing",
   );
+});
+
+test("existing v1 habits and checkins survive the next app launch", async () => {
+  const database = createDatabase();
+  const seeded = await seedV1DatabaseWithSampleHabit(database);
+
+  await initializeLocalDatabase(database, {
+    ...migrationOptions(),
+    createId: () => {
+      throw new Error("migration should not run on an existing v1 database");
+    },
+  });
+
+  const repository = new LocalHabitRepository(
+    database,
+    await getActiveWorkspaceId(database),
+  );
+  const habit = await repository.getHabit(seeded.habitId);
+  const checkins = await repository.getCheckinsForHabit(seeded.habitId, 10);
+
+  expect(habit?.title).toBe("Walk");
+  expect(checkins).toHaveLength(1);
+  expect(checkins[0]?.state).toBe("completed");
+  expect(checkins[0]?.localDay).toBe(seeded.completedLocalDay);
 });
 
 test("a failed migration rolls back schema and user_version", async () => {

@@ -22,7 +22,7 @@ import {
   getUser,
   handleCallback,
   type User,
-} from "@/lib/auth";
+} from "@/sync/auth";
 
 WebBrowser.maybeCompleteAuthSession();
 

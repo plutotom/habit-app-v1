@@ -36,12 +36,17 @@ pnpm ios
 `expo-sqlite` is a native dependency, so create a new development build after
 checking out this slice. Backend configuration is not required for offline use.
 
-- `pnpm dev:ios` — start Expo for an existing development build
+- `pnpm dev` — start Expo for an existing development build
+- `pnpm dev:backend` — Convex dev (sync work only; not required offline)
 - `pnpm lint` — ESLint
 - `pnpm format` — Prettier
-- `pnpm typecheck` — frontend and retained backend TypeScript
-- `pnpm test` — migration, repository, date, UI, and retained auth tests
+- `pnpm typecheck` — app, sync, and backend TypeScript
+- `pnpm test` — local SQLite, UI, and reminder tests in `tests/`
+- `pnpm test:sync` / `pnpm test:backend` — retained auth and Convex tests
 - `pnpm verify` — lint, types, tests, and Expo Doctor
+- `pnpm verify:ship` — verify + sync tests; run before TestFlight or App Store builds
+
+See `docs/local-migrations.md` when changing the on-device SQLite schema.
 
 Use the pinned pnpm version (`corepack enable`, or `npx pnpm@10.12.1`).
 

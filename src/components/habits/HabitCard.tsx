@@ -10,7 +10,7 @@ import {
   type GestureResponderEvent,
 } from "react-native";
 
-import { useHabitStatistics } from "@/hooks/use-habit-statistics";
+import { useLocalHabitStatistics } from "@/local/hooks";
 import type { HabitId } from "@/local/types";
 import { colors, fonts } from "@/theme";
 
@@ -40,7 +40,7 @@ export function HabitCard({
   onUndo,
 }: HabitCardProps) {
   const router = useRouter();
-  const streak = useHabitStatistics(habitId, todayLocal);
+  const streak = useLocalHabitStatistics(habitId, todayLocal);
   const [holdProgress, setHoldProgress] = useState(0);
   const [isHolding, setIsHolding] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);

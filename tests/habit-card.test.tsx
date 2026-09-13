@@ -9,8 +9,8 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
 }));
 vi.mock("expo-router", () => ({ useRouter: () => ({ push: mocks.push }) }));
-vi.mock("@/hooks/use-habit-statistics", () => ({
-  useHabitStatistics: () => ({ current: 1, longest: 1, total: 1 }),
+vi.mock("@/local/hooks", () => ({
+  useLocalHabitStatistics: () => ({ current: 1, longest: 1, total: 1 }),
 }));
 vi.mock("react-native", () => ({
   Pressable: "button",

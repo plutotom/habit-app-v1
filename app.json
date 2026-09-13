@@ -20,8 +20,6 @@
     "plugins": [
       "expo-router",
       "expo-dev-client",
-      "expo-secure-store",
-      "expo-web-browser",
       "expo-font",
       "expo-updates",
       "expo-notifications",
@@ -33,7 +31,9 @@
           "backgroundColor": "#f5f4ef"
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

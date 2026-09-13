@@ -12,10 +12,10 @@ import {
 } from "@/lib/dates";
 import { colors, fonts } from "@/theme";
 import { useLocalDay } from "@/hooks/use-local-day";
-import { useHabitStatistics } from "@/hooks/use-habit-statistics";
 import {
   useLocalHabit,
   useLocalHabitCheckins,
+  useLocalHabitStatistics,
   useLocalPreferences,
 } from "@/local/hooks";
 
@@ -41,7 +41,7 @@ export default function HabitDetailScreen() {
   const checkins = useLocalHabitCheckins(id, 120);
   const timezone = preferences?.timezone ?? "UTC";
   const localDay = useLocalDay(timezone);
-  const streak = useHabitStatistics(id, localDay, !!habit);
+  const streak = useLocalHabitStatistics(id, localDay, !!habit);
 
   if (
     habit === undefined ||

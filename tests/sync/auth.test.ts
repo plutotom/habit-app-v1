@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { beforeEach, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -13,6 +15,9 @@ vi.mock("expo-secure-store", () => ({
   deleteItemAsync: vi.fn(async (key: string) => {
     mocks.store.delete(key);
   }),
+}));
+vi.mock("@/sync/polyfills", () => ({
+  ensureWebCryptoPolyfills: vi.fn(),
 }));
 vi.mock("@workos-inc/node", () => ({
   WorkOS: class {
@@ -47,7 +52,7 @@ beforeEach(() => {
 
 test("network failures preserve credentials and local identity for retry", async () => {
   mocks.refresh.mockRejectedValue(new TypeError("Network request failed"));
-  const auth = await import("../src/lib/auth");
+  const auth = await import("../../src/sync/auth");
   await expect(auth.getAccessToken()).rejects.toThrow("Network request failed");
   expect(mocks.store.has(key)).toBe(true);
   expect(await auth.getUser()).toEqual(user);
@@ -61,7 +66,7 @@ test("network failures preserve credentials and local identity for retry", async
 
 test("revoked refresh credentials clear the session", async () => {
   mocks.refresh.mockRejectedValue({ error: "invalid_grant" });
-  const auth = await import("../src/lib/auth");
+  const auth = await import("../../src/sync/auth");
   expect(await auth.getAccessToken()).toBeNull();
   expect(mocks.store.has(key)).toBe(false);
 });
@@ -74,7 +79,7 @@ test("concurrent requests share one refresh, and signing out prevents resurrecti
         resolve = done;
       }),
   );
-  const auth = await import("../src/lib/auth");
+  const auth = await import("../../src/sync/auth");
   const first = auth.getAccessToken(true);
   const second = auth.getAccessToken(true);
   await vi.waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
@@ -91,7 +96,7 @@ test("duplicate callback delivery exchanges a code only once", async () => {
     JSON.stringify({ codeVerifier: "verifier", expiresAt: Date.now() + 60000 }),
   );
   mocks.exchange.mockResolvedValue(session);
-  const auth = await import("../src/lib/auth");
+  const auth = await import("../../src/sync/auth");
   await Promise.all([auth.handleCallback("code"), auth.handleCallback("code")]);
   await auth.handleCallback("code");
   expect(mocks.exchange).toHaveBeenCalledTimes(1);
