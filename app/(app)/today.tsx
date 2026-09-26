@@ -28,7 +28,7 @@ export default function TodayScreen() {
   const { day: dayParam } = useLocalSearchParams<{ day?: string }>();
   const preferences = useLocalPreferences();
   const habits = useLocalHabits();
-  const { completeHabit, undoCheckin } = useLocalMutations();
+  const { addHabitProgress, undoCheckin } = useLocalMutations();
   const timezone = preferences?.timezone ?? "UTC";
   const weekStart = preferences?.weekStart ?? "mon";
   const todayLocal = useLocalDay(timezone);
@@ -92,17 +92,24 @@ export default function TodayScreen() {
     earliestHabitDay !== null && selectedDay < earliestHabitDay;
   const completedDays = new Set(
     weekCheckins
-      .filter((checkin) => !checkin.isSkip)
+      .filter((checkin) => {
+        const habit = habits.find((item) => item.id === checkin.habitId);
+        return (
+          !checkin.isSkip &&
+          habit !== undefined &&
+          checkin.value >= habit.dailyGoal
+        );
+      })
       .map((checkin) => checkin.localDay),
   );
-  const completedCount = dueHabits.filter((habit) =>
-    checkinMap.has(habit.id),
+  const completedCount = dueHabits.filter(
+    (habit) => (checkinMap.get(habit.id)?.value ?? 0) >= habit.dailyGoal,
   ).length;
 
-  async function handleComplete(habitId: HabitId) {
+  async function handleAddProgress(habitId: HabitId, amount: number) {
     setCompletingId(habitId);
     try {
-      await completeHabit(habitId, selectedDay);
+      await addHabitProgress(habitId, selectedDay, amount);
     } finally {
       setCompletingId(null);
     }
@@ -175,11 +182,15 @@ export default function TodayScreen() {
                 habitId={habit.id}
                 title={habit.title}
                 description={habit.description}
-                done={checkinMap.has(habit.id)}
+                dailyGoal={habit.dailyGoal}
+                goalUnit={habit.goalUnit}
+                customUnit={habit.customUnit}
+                progress={checkinMap.get(habit.id)?.value ?? 0}
+                done={(checkinMap.get(habit.id)?.value ?? 0) >= habit.dailyGoal}
                 localDay={selectedDay}
                 todayLocal={todayLocal}
                 canComplete={selectedDay <= todayLocal}
-                onComplete={() => handleComplete(habit.id)}
+                onAddProgress={(amount) => handleAddProgress(habit.id, amount)}
                 onUndo={() => handleUndo(habit.id)}
               />
             ))}

@@ -98,6 +98,9 @@ export default function EditHabitScreen() {
           description: habit.description,
           scheduleType: habit.scheduleType,
           allowedDays: habit.allowedDays,
+          dailyGoal: habit.dailyGoal,
+          goalUnit: habit.goalUnit,
+          customUnit: habit.customUnit,
           reminderTimes,
         }}
         submitLabel="Save changes"

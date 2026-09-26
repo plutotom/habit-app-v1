@@ -23,6 +23,9 @@ export function validateHabit(fields: {
   description?: string;
   scheduleType: "daily" | "specific_days";
   allowedDays?: number[];
+  dailyGoal?: number;
+  goalUnit?: string;
+  customUnit?: string;
 }): void {
   if (!fields.title.trim() || fields.title.trim().length > 120) {
     throw new Error("Habit titles must contain 1–120 characters");
@@ -39,6 +42,25 @@ export function validateHabit(fields: {
       new Set(days).size !== days.length
     ) {
       throw new Error("Select at least one weekday, without duplicates");
+    }
+  }
+  const dailyGoal = fields.dailyGoal ?? 1;
+  if (
+    !Number.isFinite(dailyGoal) ||
+    dailyGoal <= 0 ||
+    dailyGoal > 1_000_000_000
+  ) {
+    throw new Error("Daily goals must be greater than 0");
+  }
+  const validUnits = ["times", "steps", "minutes", "mg", "custom"];
+  const goalUnit = fields.goalUnit ?? "times";
+  if (!validUnits.includes(goalUnit)) {
+    throw new Error("Choose a valid goal unit");
+  }
+  if (goalUnit === "custom") {
+    const customUnit = fields.customUnit?.trim() ?? "";
+    if (!customUnit || customUnit.length > 24) {
+      throw new Error("Custom units must contain 1–24 characters");
     }
   }
 }

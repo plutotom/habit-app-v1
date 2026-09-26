@@ -10,6 +10,8 @@ import {
 } from "react-native";
 
 import type { ReminderTime } from "@/lib/habit-reminders";
+import { GOAL_UNIT_OPTIONS } from "@/lib/habit-goals";
+import type { HabitGoalUnit } from "@/local/types";
 import { colors } from "@/theme";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
@@ -19,6 +21,9 @@ export type HabitFormValues = {
   description?: string;
   scheduleType: "daily" | "specific_days";
   allowedDays?: number[];
+  dailyGoal: number;
+  goalUnit: HabitGoalUnit;
+  customUnit?: string;
   reminderTimes: ReminderTime[];
 };
 type Props = {
@@ -48,11 +53,24 @@ export function HabitForm({
   const [allowedDays, setAllowedDays] = useState<number[]>(
     initial?.allowedDays ?? [1, 2, 3, 4, 5],
   );
+  const [dailyGoalText, setDailyGoalText] = useState(
+    String(initial?.dailyGoal ?? 1),
+  );
+  const [goalUnit, setGoalUnit] = useState<HabitGoalUnit>(
+    initial?.goalUnit ?? "times",
+  );
+  const [customUnit, setCustomUnit] = useState(initial?.customUnit ?? "");
   const [reminderTimes, setReminderTimes] = useState<ReminderTime[]>(
     initial?.reminderTimes ?? [],
   );
   const [editingReminder, setEditingReminder] = useState<number | null>(null);
   const validSchedule = scheduleType === "daily" || allowedDays.length > 0;
+  const dailyGoal = Number(dailyGoalText.replace(/,/g, ""));
+  const validGoal =
+    Number.isFinite(dailyGoal) &&
+    dailyGoal > 0 &&
+    dailyGoal <= 1_000_000_000 &&
+    (goalUnit !== "custom" || customUnit.trim().length > 0);
   const reminderDate = (time: ReminderTime) => {
     const date = new Date();
     date.setHours(time.hour, time.minute, 0, 0);
@@ -64,12 +82,15 @@ export function HabitForm({
       minute: "2-digit",
     });
   async function submit() {
-    if (!title.trim() || !validSchedule || saving) return;
+    if (!title.trim() || !validSchedule || !validGoal || saving) return;
     await onSubmit({
       title: title.trim(),
       description: description.trim() || undefined,
       scheduleType,
       allowedDays: scheduleType === "specific_days" ? allowedDays : undefined,
+      dailyGoal,
+      goalUnit,
+      customUnit: goalUnit === "custom" ? customUnit.trim() : undefined,
       reminderTimes,
     });
   }
@@ -119,6 +140,58 @@ export function HabitForm({
           placeholderTextColor={colors.muted}
           style={styles.input}
         />
+      </View>
+      <View style={styles.field}>
+        <Text style={styles.label}>Daily goal</Text>
+        <Text style={styles.help}>
+          Set how much you want to do on each active day.
+        </Text>
+        <View style={styles.goalInputRow}>
+          <TextInput
+            value={dailyGoalText}
+            onChangeText={setDailyGoalText}
+            keyboardType="decimal-pad"
+            placeholder="1"
+            placeholderTextColor={colors.muted}
+            style={[styles.input, styles.goalInput]}
+          />
+          <Text style={styles.goalUnitPreview}>
+            {goalUnit === "custom" ? customUnit.trim() || "units" : goalUnit}
+          </Text>
+        </View>
+        <Text style={styles.example}>Try 2 times, 4,000 steps, or 400 mg.</Text>
+        <Text style={styles.label}>Measured in</Text>
+        <View style={styles.goalChoices}>
+          {GOAL_UNIT_OPTIONS.map((option) => (
+            <Pressable
+              key={option.value}
+              onPress={() => setGoalUnit(option.value)}
+              style={[
+                styles.goalChoice,
+                goalUnit === option.value && styles.choiceActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.choiceText,
+                  goalUnit === option.value && styles.choiceTextActive,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        {goalUnit === "custom" ? (
+          <TextInput
+            value={customUnit}
+            maxLength={24}
+            onChangeText={setCustomUnit}
+            placeholder="e.g. cups"
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+          />
+        ) : null}
       </View>
       <View style={styles.field}>
         <Text style={styles.label}>Schedule</Text>
@@ -228,6 +301,11 @@ export function HabitForm({
       {!validSchedule ? (
         <Text style={styles.error}>Select at least one weekday.</Text>
       ) : null}
+      {!validGoal ? (
+        <Text style={styles.error}>
+          Enter a daily goal greater than 0 and choose its unit.
+        </Text>
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <View style={styles.actions}>
         <Pressable onPress={onCancel} style={styles.cancel}>
@@ -235,10 +313,11 @@ export function HabitForm({
         </Pressable>
         <Pressable
           onPress={() => void submit()}
-          disabled={saving || !title.trim() || !validSchedule}
+          disabled={saving || !title.trim() || !validSchedule || !validGoal}
           style={[
             styles.submit,
-            (saving || !title.trim() || !validSchedule) && styles.disabled,
+            (saving || !title.trim() || !validSchedule || !validGoal) &&
+              styles.disabled,
           ]}
         >
           <Text style={styles.submitText}>
@@ -266,7 +345,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.foreground,
   },
+  goalInputRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  goalInput: { flex: 1 },
+  goalUnitPreview: {
+    minWidth: 72,
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.foreground,
+  },
+  example: { fontSize: 12, color: colors.muted },
   row: { flexDirection: "row", gap: 8 },
+  goalChoices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  goalChoice: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
   choice: {
     flex: 1,
     borderWidth: 1,

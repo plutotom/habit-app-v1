@@ -4,6 +4,7 @@ export type WorkspaceId = string;
 export type HabitId = string;
 export type CheckinId = string;
 export type ScheduleType = "daily" | "specific_days";
+export type HabitGoalUnit = "times" | "steps" | "minutes" | "mg" | "custom";
 
 export type Preferences = {
   workspaceId: WorkspaceId;
@@ -19,6 +20,9 @@ export type Habit = {
   description?: string;
   scheduleType: ScheduleType;
   allowedDays?: number[];
+  dailyGoal: number;
+  goalUnit: HabitGoalUnit;
+  customUnit?: string;
   order: number;
   isArchived: boolean;
   createdLocalDay: string;
@@ -51,4 +55,7 @@ export type HabitFields = {
   description?: string;
   scheduleType: ScheduleType;
   allowedDays?: number[];
+  dailyGoal?: number;
+  goalUnit?: HabitGoalUnit;
+  customUnit?: string;
 };

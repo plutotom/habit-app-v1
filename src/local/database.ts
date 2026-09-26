@@ -1,7 +1,7 @@
 import { createLocalId } from "@/local/ids";
 
 export const LOCAL_DATABASE_NAME = "habit-local-v1.db";
-export const LOCAL_DATABASE_VERSION = 1;
+export const LOCAL_DATABASE_VERSION = 2;
 
 // Future sync: local_workspaces.kind, remote_account_id, and local_sync_outbox
 // are scaffolded for account import but have no consumer in the guest-first app.
@@ -22,6 +22,8 @@ type MigrationOptions = {
   now?: () => number;
   createId?: () => string;
   detectedTimezone?: string;
+  /** Test-only escape hatch for creating an older database fixture. */
+  targetVersion?: 1 | 2;
 };
 
 const V1_SCHEMA = `
@@ -110,6 +112,15 @@ CREATE TABLE local_metadata (
 );
 `;
 
+const V2_HABIT_GOALS_MIGRATION = `
+ALTER TABLE local_habits
+  ADD COLUMN daily_goal REAL NOT NULL DEFAULT 1 CHECK (daily_goal > 0);
+ALTER TABLE local_habits
+  ADD COLUMN goal_unit TEXT NOT NULL DEFAULT 'times';
+ALTER TABLE local_habits
+  ADD COLUMN custom_unit TEXT;
+`;
+
 export function getDetectedTimezone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -126,48 +137,56 @@ export async function initializeLocalDatabase(
   await db.execAsync("PRAGMA journal_mode = WAL;");
   await db.execAsync("PRAGMA busy_timeout = 5000;");
 
-  const versionRow = await db.getFirstAsync<{ user_version: number }>(
-    "PRAGMA user_version;",
-  );
-  const version = versionRow?.user_version ?? 0;
-  if (version > LOCAL_DATABASE_VERSION) {
-    throw new Error(
-      `This local database is version ${version}, but this app supports up to version ${LOCAL_DATABASE_VERSION}. Update the app before continuing.`,
-    );
-  }
-  if (version === LOCAL_DATABASE_VERSION) return;
-
-  const now = options.now?.() ?? Date.now();
-  const createId = options.createId ?? createLocalId;
-  const workspaceId = createId();
-  const installationId = createId();
-  const timezone = options.detectedTimezone ?? getDetectedTimezone();
+  const targetVersion = options.targetVersion ?? LOCAL_DATABASE_VERSION;
 
   await db.withExclusiveTransactionAsync(async (transaction) => {
-    await transaction.execAsync(V1_SCHEMA);
-    await transaction.runAsync(
-      `INSERT INTO local_workspaces
-        (id, kind, remote_account_id, created_at, updated_at)
-       VALUES (?, 'guest', NULL, ?, ?);`,
-      [workspaceId, now, now],
-    );
-    await transaction.runAsync(
-      `INSERT INTO local_preferences
-        (workspace_id, timezone, week_start, updated_at)
-       VALUES (?, ?, 'mon', ?);`,
-      [workspaceId, timezone, now],
-    );
-    await transaction.runAsync(
-      "INSERT INTO local_metadata (key, value, updated_at) VALUES ('active_workspace_id', ?, ?);",
-      [workspaceId, now],
-    );
-    await transaction.runAsync(
-      "INSERT INTO local_metadata (key, value, updated_at) VALUES ('installation_id', ?, ?);",
-      [installationId, now],
-    );
-    await transaction.execAsync(
-      `PRAGMA user_version = ${LOCAL_DATABASE_VERSION};`,
-    );
+    // Read the version after acquiring the exclusive lock. On a fresh install,
+    // two providers can otherwise both observe version 0 and race to create
+    // the schema, leaving the second initializer with "table already exists".
+    const versionRow = await transaction.getFirstAsync<{
+      user_version: number;
+    }>("PRAGMA user_version;");
+    const version = versionRow?.user_version ?? 0;
+    if (version > targetVersion) {
+      throw new Error(
+        `This local database is version ${version}, but this app supports up to version ${targetVersion}. Update the app before continuing.`,
+      );
+    }
+    if (version === targetVersion) return;
+
+    const now = options.now?.() ?? Date.now();
+    const createId = options.createId ?? createLocalId;
+    const workspaceId = version === 0 ? createId() : "";
+    const installationId = version === 0 ? createId() : "";
+    const timezone = options.detectedTimezone ?? getDetectedTimezone();
+
+    if (version === 0) {
+      await transaction.execAsync(V1_SCHEMA);
+      await transaction.runAsync(
+        `INSERT INTO local_workspaces
+          (id, kind, remote_account_id, created_at, updated_at)
+         VALUES (?, 'guest', NULL, ?, ?);`,
+        [workspaceId, now, now],
+      );
+      await transaction.runAsync(
+        `INSERT INTO local_preferences
+          (workspace_id, timezone, week_start, updated_at)
+         VALUES (?, ?, 'mon', ?);`,
+        [workspaceId, timezone, now],
+      );
+      await transaction.runAsync(
+        "INSERT INTO local_metadata (key, value, updated_at) VALUES ('active_workspace_id', ?, ?);",
+        [workspaceId, now],
+      );
+      await transaction.runAsync(
+        "INSERT INTO local_metadata (key, value, updated_at) VALUES ('installation_id', ?, ?);",
+        [installationId, now],
+      );
+    }
+    if (version < 2 && targetVersion >= 2) {
+      await transaction.execAsync(V2_HABIT_GOALS_MIGRATION);
+    }
+    await transaction.execAsync(`PRAGMA user_version = ${targetVersion};`);
   });
 }
 

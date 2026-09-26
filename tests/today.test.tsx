@@ -18,6 +18,8 @@ vi.mock("@/local/hooks", () => ({
     {
       id: "habit",
       title: "Walk",
+      dailyGoal: 1,
+      goalUnit: "times",
       scheduleType: "daily",
       createdLocalDay: "2020-01-01",
       createdAt: 0,
@@ -31,6 +33,7 @@ vi.mock("@/local/hooks", () => ({
             id: "habit:2026-09-05",
             habitId: "habit",
             localDay: "2026-09-05",
+            value: 1,
           },
         ]
       : [];

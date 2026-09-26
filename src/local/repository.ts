@@ -11,6 +11,7 @@ import type {
   CheckinId,
   Habit,
   HabitFields,
+  HabitGoalUnit,
   HabitId,
   HabitStatistics,
   Preferences,
@@ -38,6 +39,9 @@ type HabitRow = {
   description: string | null;
   schedule_type: "daily" | "specific_days";
   allowed_days_json: string | null;
+  daily_goal: number;
+  goal_unit: HabitGoalUnit;
+  custom_unit: string | null;
   sort_order: number;
   is_archived: number;
   created_local_day: string;
@@ -76,6 +80,9 @@ function mapHabit(row: HabitRow): Habit {
     allowedDays: row.allowed_days_json
       ? (JSON.parse(row.allowed_days_json) as number[])
       : undefined,
+    dailyGoal: row.daily_goal,
+    goalUnit: row.goal_unit,
+    customUnit: row.custom_unit ?? undefined,
     order: row.sort_order,
     isArchived: row.is_archived === 1,
     createdLocalDay: row.created_local_day,
@@ -109,8 +116,21 @@ function mapPreferences(row: PreferencesRow): Preferences {
   };
 }
 
-function normalizeHabitFields(fields: HabitFields): HabitFields {
-  validateHabit(fields);
+type NormalizedHabitFields = Omit<
+  HabitFields,
+  "dailyGoal" | "goalUnit" | "customUnit"
+> & {
+  dailyGoal: number;
+  goalUnit: HabitGoalUnit;
+  customUnit?: string;
+};
+
+function normalizeHabitFields(fields: HabitFields): NormalizedHabitFields {
+  const dailyGoal = fields.dailyGoal ?? 1;
+  const goalUnit = fields.goalUnit ?? "times";
+  const customUnit =
+    goalUnit === "custom" ? fields.customUnit?.trim() || undefined : undefined;
+  validateHabit({ ...fields, dailyGoal, goalUnit, customUnit });
   return {
     title: fields.title.trim(),
     description: fields.description?.trim() || undefined,
@@ -119,6 +139,9 @@ function normalizeHabitFields(fields: HabitFields): HabitFields {
       fields.scheduleType === "specific_days"
         ? [...(fields.allowedDays ?? [])].sort((a, b) => a - b)
         : undefined,
+    dailyGoal,
+    goalUnit,
+    customUnit,
   };
 }
 
@@ -283,9 +306,9 @@ export class LocalHabitRepository {
       await transaction.runAsync(
         `INSERT INTO local_habits
           (id, workspace_id, title, description, schedule_type,
-           allowed_days_json, sort_order, is_archived, created_local_day,
-           created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?);`,
+           allowed_days_json, daily_goal, goal_unit, custom_unit, sort_order,
+           is_archived, created_local_day, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?);`,
         [
           habitId,
           this.workspaceId,
@@ -295,6 +318,9 @@ export class LocalHabitRepository {
           normalized.allowedDays
             ? JSON.stringify(normalized.allowedDays)
             : null,
+          normalized.dailyGoal,
+          normalized.goalUnit,
+          normalized.customUnit ?? null,
           order,
           createdLocalDay,
           now,
@@ -323,7 +349,8 @@ export class LocalHabitRepository {
       await transaction.runAsync(
         `UPDATE local_habits
          SET title = ?, description = ?, schedule_type = ?,
-             allowed_days_json = ?, updated_at = ?
+             allowed_days_json = ?, daily_goal = ?, goal_unit = ?,
+             custom_unit = ?, updated_at = ?
          WHERE id = ? AND workspace_id = ?;`,
         [
           normalized.title,
@@ -332,6 +359,9 @@ export class LocalHabitRepository {
           normalized.allowedDays
             ? JSON.stringify(normalized.allowedDays)
             : null,
+          normalized.dailyGoal,
+          normalized.goalUnit,
+          normalized.customUnit ?? null,
           now,
           habitId,
           this.workspaceId,
@@ -427,16 +457,29 @@ export class LocalHabitRepository {
     }
     await this.getHabitFrom(this.db, habitId);
     const rows = await this.db.getAllAsync<CheckinRow>(
-      `SELECT * FROM local_checkins
-       WHERE workspace_id = ? AND habit_id = ? AND state = 'completed'
-       ORDER BY local_day DESC LIMIT ?;`,
+      `SELECT c.* FROM local_checkins c
+       JOIN local_habits h ON h.id = c.habit_id AND h.workspace_id = c.workspace_id
+       WHERE c.workspace_id = ? AND c.habit_id = ?
+         AND c.state = 'completed' AND c.value >= h.daily_goal
+       ORDER BY c.local_day DESC LIMIT ?;`,
       [this.workspaceId, habitId, Math.min(limit, 400)],
     );
     return rows.map(mapCheckin);
   }
 
   async completeHabit(habitId: HabitId, localDay: string): Promise<CheckinId> {
+    return this.addHabitProgress(habitId, localDay, 1);
+  }
+
+  async addHabitProgress(
+    habitId: HabitId,
+    localDay: string,
+    amount: number,
+  ): Promise<CheckinId> {
     validateLocalDay(localDay);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000) {
+      throw new Error("Progress must be greater than 0");
+    }
     const now = this.now();
     const checkinId = `${habitId}:${localDay}`;
     await this.db.withExclusiveTransactionAsync(async (transaction) => {
@@ -458,6 +501,12 @@ export class LocalHabitRepository {
         "SELECT * FROM local_checkins WHERE habit_id = ? AND local_day = ?;",
         [habitId, localDay],
       );
+      const previousValue =
+        previous?.state === "completed" ? previous.value : 0;
+      const value = previousValue + amount;
+      if (!Number.isFinite(value)) {
+        throw new Error("Progress is too large");
+      }
       const checkin: Checkin = {
         id: checkinId,
         workspaceId: this.workspaceId,
@@ -465,7 +514,7 @@ export class LocalHabitRepository {
         localDay,
         state: "completed",
         completedAt: now,
-        value: 1,
+        value,
         isSkip: false,
         createdAt: previous?.created_at ?? now,
         updatedAt: now,
@@ -474,16 +523,18 @@ export class LocalHabitRepository {
         `INSERT INTO local_checkins
           (id, workspace_id, habit_id, local_day, state, completed_at,
            value, is_skip, note, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'completed', ?, 1, 0, NULL, ?, ?)
+         VALUES (?, ?, ?, ?, 'completed', ?, ?, 0, NULL, ?, ?)
          ON CONFLICT(habit_id, local_day) DO UPDATE SET
            state = 'completed', completed_at = excluded.completed_at,
-           value = 1, is_skip = 0, note = NULL, updated_at = excluded.updated_at;`,
+           value = excluded.value, is_skip = 0, note = NULL,
+           updated_at = excluded.updated_at;`,
         [
           checkinId,
           this.workspaceId,
           habitId,
           localDay,
           now,
+          value,
           previous?.created_at ?? now,
           now,
         ],
@@ -569,9 +620,16 @@ export class LocalHabitRepository {
       `SELECT local_day FROM local_checkins
        WHERE workspace_id = ? AND habit_id = ?
          AND state = 'completed' AND is_skip = 0
+         AND value >= ?
          AND local_day >= ? AND local_day <= ?
        ORDER BY local_day DESC;`,
-      [this.workspaceId, habitId, habit.createdLocalDay, todayLocal],
+      [
+        this.workspaceId,
+        habitId,
+        habit.dailyGoal,
+        habit.createdLocalDay,
+        todayLocal,
+      ],
     );
     const allDays = rows.map((row) => row.local_day);
     const scheduledDays = allDays.filter((day) =>

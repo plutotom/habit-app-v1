@@ -6,25 +6,35 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
   type GestureResponderEvent,
 } from "react-native";
 
 import { useLocalHabitStatistics } from "@/local/hooks";
-import type { HabitId } from "@/local/types";
+import {
+  formatGoal,
+  formatGoalNumber,
+  formatGoalUnit,
+} from "@/lib/habit-goals";
+import type { HabitGoalUnit, HabitId } from "@/local/types";
 import { colors, fonts } from "@/theme";
 
-const HOLD_DURATION_MS = 3000;
+const HOLD_DURATION_MS = 2000;
 
 type HabitCardProps = {
   habitId: HabitId;
   title: string;
   description?: string;
+  dailyGoal: number;
+  goalUnit: HabitGoalUnit;
+  customUnit?: string;
+  progress: number;
   done: boolean;
   localDay: string;
   todayLocal: string;
   canComplete: boolean;
-  onComplete: () => Promise<void>;
+  onAddProgress: (amount: number) => Promise<void>;
   onUndo: () => Promise<void>;
 };
 
@@ -32,11 +42,15 @@ export function HabitCard({
   habitId,
   title,
   description,
+  dailyGoal,
+  goalUnit,
+  customUnit,
+  progress,
   done,
   localDay,
   todayLocal,
   canComplete,
-  onComplete,
+  onAddProgress,
   onUndo,
 }: HabitCardProps) {
   const router = useRouter();
@@ -44,6 +58,10 @@ export function HabitCard({
   const [holdProgress, setHoldProgress] = useState(0);
   const [isHolding, setIsHolding] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [isAddingProgress, setIsAddingProgress] = useState(false);
+  const [showProgressInput, setShowProgressInput] = useState(false);
+  const [progressDraft, setProgressDraft] = useState("");
+  const [progressError, setProgressError] = useState("");
   const [isUndoing, setIsUndoing] = useState(false);
   const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const holdStartRef = useRef<number | null>(null);
@@ -81,18 +99,18 @@ export function HabitCard({
     holdTimerRef.current = setInterval(() => {
       if (!holdStartRef.current) return;
       const elapsed = Date.now() - holdStartRef.current;
-      const progress = Math.min(elapsed / HOLD_DURATION_MS, 1);
-      setHoldProgress(progress);
-      if (progress >= 1) {
+      const holdFraction = Math.min(elapsed / HOLD_DURATION_MS, 1);
+      setHoldProgress(holdFraction);
+      if (holdFraction >= 1) {
         if (holdTimerRef.current) {
           clearInterval(holdTimerRef.current);
           holdTimerRef.current = null;
         }
         setIsCompleting(true);
         completingRef.current = true;
-        void onComplete()
+        void onAddProgress(1)
           .then(() => {
-            if (mountedRef.current)
+            if (mountedRef.current && progress + 1 >= dailyGoal)
               router.push({
                 pathname: "/habits/[habitId]/completed",
                 params: { habitId, day: localDay },
@@ -114,7 +132,61 @@ export function HabitCard({
           });
       }
     }, 16);
-  }, [done, canComplete, habitId, localDay, onComplete, router, clearHold]);
+  }, [
+    done,
+    canComplete,
+    dailyGoal,
+    habitId,
+    localDay,
+    onAddProgress,
+    progress,
+    router,
+    clearHold,
+  ]);
+
+  function openProgressInput(e: GestureResponderEvent) {
+    e.stopPropagation();
+    setProgressError("");
+    if (showProgressInput) {
+      setShowProgressInput(false);
+      setProgressDraft("");
+      return;
+    }
+    setShowProgressInput(true);
+  }
+
+  function submitProgress(e: GestureResponderEvent) {
+    e.stopPropagation();
+    const amount = Number(progressDraft.replace(/,/g, ""));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setProgressError("Enter an amount greater than 0.");
+      return;
+    }
+    setIsAddingProgress(true);
+    setProgressError("");
+    void onAddProgress(amount)
+      .then(() => {
+        setProgressDraft("");
+        setShowProgressInput(false);
+        if (mountedRef.current && progress + amount >= dailyGoal) {
+          router.push({
+            pathname: "/habits/[habitId]/completed",
+            params: { habitId, day: localDay },
+          });
+        }
+      })
+      .catch(() => {
+        if (mountedRef.current) {
+          Alert.alert(
+            "Couldn't save",
+            "Couldn’t save on this phone. Please try again.",
+          );
+        }
+      })
+      .finally(() => {
+        if (mountedRef.current) setIsAddingProgress(false);
+      });
+  }
 
   async function handleUndo(e: GestureResponderEvent) {
     e.stopPropagation();
@@ -133,6 +205,8 @@ export function HabitCard({
   }
 
   const streakCount = streak?.current ?? "…";
+  const oneUnitLabel = formatGoalUnit(goalUnit, 1, customUnit);
+  const progressPercent = Math.min(progress / dailyGoal, 1);
 
   return (
     <View style={styles.wrap}>
@@ -188,6 +262,9 @@ export function HabitCard({
             <View style={styles.pill}>
               <Text style={styles.pillText}>Completed</Text>
             </View>
+            <Text style={styles.progressSummary}>
+              {formatGoal(progress, goalUnit, customUnit)} goal
+            </Text>
             {canComplete ? (
               <Pressable onPress={handleUndo} disabled={isUndoing}>
                 <Text style={styles.undo}>
@@ -197,16 +274,80 @@ export function HabitCard({
             ) : null}
           </View>
         ) : null}
-        {!done && canComplete && !isHolding && !isCompleting ? (
-          <Text style={styles.hint}>Press and hold to complete</Text>
+        {!done ? (
+          <View style={styles.progressBlock}>
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressText}>
+                {formatGoalNumber(progress)} / {formatGoalNumber(dailyGoal)}{" "}
+                {formatGoalUnit(goalUnit, dailyGoal, customUnit)}
+              </Text>
+              <Text style={styles.progressPercent}>
+                {Math.round(progressPercent * 100)}%
+              </Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressFill,
+                  { width: `${progressPercent * 100}%` },
+                ]}
+              />
+            </View>
+            {canComplete ? (
+              <View style={styles.progressActions}>
+                <Pressable
+                  accessibilityLabel="Log a specific amount"
+                  onPressIn={(e) => e.stopPropagation()}
+                  onPress={openProgressInput}
+                  disabled={isAddingProgress}
+                  style={styles.logButton}
+                >
+                  <Text style={styles.logButtonText}>
+                    {showProgressInput ? "Close" : "Log amount"}
+                  </Text>
+                </Pressable>
+                <Text style={styles.hintInline}>
+                  {isHolding
+                    ? `Keep holding… ${Math.round(holdProgress * 100)}%`
+                    : isCompleting
+                      ? "Saving…"
+                      : `Hold to add 1 ${oneUnitLabel}`}
+                </Text>
+              </View>
+            ) : null}
+            {showProgressInput && canComplete ? (
+              <View style={styles.progressEntry}>
+                <TextInput
+                  value={progressDraft}
+                  onChangeText={setProgressDraft}
+                  keyboardType="decimal-pad"
+                  placeholder={`e.g. ${formatGoalNumber(dailyGoal)}`}
+                  placeholderTextColor={colors.muted}
+                  style={styles.progressInput}
+                />
+                <Pressable
+                  accessibilityLabel="Add progress"
+                  onPressIn={(e) => e.stopPropagation()}
+                  onPress={submitProgress}
+                  disabled={isAddingProgress}
+                  style={[
+                    styles.addProgress,
+                    isAddingProgress && styles.disabled,
+                  ]}
+                >
+                  <Text style={styles.addProgressText}>
+                    {isAddingProgress ? "Adding…" : "Add"}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {progressError ? (
+              <Text style={styles.progressError}>{progressError}</Text>
+            ) : null}
+          </View>
         ) : null}
         {!done && !canComplete ? (
           <Text style={styles.hint}>Not completed</Text>
-        ) : null}
-        {isHolding && !done ? (
-          <Text style={styles.holding}>
-            Keep holding… {Math.round(holdProgress * 100)}%
-          </Text>
         ) : null}
       </Pressable>
     </View>
@@ -240,6 +381,64 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
   cardDone: { opacity: 0.7 },
+  progressSummary: { fontSize: 13, color: colors.muted },
+  progressBlock: { marginTop: 36, gap: 10 },
+  progressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+  },
+  progressText: { fontSize: 13, fontWeight: "600", color: colors.foreground },
+  progressPercent: { fontSize: 12, color: colors.muted },
+  progressTrack: {
+    height: 8,
+    overflow: "hidden",
+    borderRadius: 999,
+    backgroundColor: colors.pill,
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: colors.accentOrange,
+  },
+  progressActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+  },
+  logButton: {
+    borderRadius: 999,
+    backgroundColor: colors.foreground,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  logButtonText: { fontSize: 12, fontWeight: "600", color: colors.white },
+  hintInline: { flex: 1, fontSize: 11, color: colors.muted },
+  progressEntry: { flexDirection: "row", gap: 8, marginTop: 2 },
+  progressInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 14,
+    color: colors.foreground,
+  },
+  addProgress: {
+    borderRadius: 12,
+    backgroundColor: colors.accentOrange,
+    paddingHorizontal: 16,
+    justifyContent: "center",
+  },
+  addProgressText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.foreground,
+  },
+  progressError: { fontSize: 12, color: "#a33a2b" },
+  disabled: { opacity: 0.5 },
   actions: {
     flexDirection: "row",
     justifyContent: "center",

@@ -138,6 +138,32 @@ test("completion, undo, and recompletion retain one deterministic row", async ()
   });
 });
 
+test("goal progress accumulates and only counts a completed goal day", async () => {
+  const habitId = await repository.createHabit({
+    title: "Meditate",
+    scheduleType: "daily",
+    dailyGoal: 2,
+    goalUnit: "times",
+  });
+
+  await repository.addHabitProgress(habitId, "2026-09-07", 1);
+  expect((await repository.getCheckinsForDays(["2026-09-07"]))[0]?.value).toBe(
+    1,
+  );
+  expect(await repository.getHabitStatistics(habitId, "2026-09-07")).toEqual({
+    current: 0,
+    longest: 0,
+    total: 0,
+  });
+
+  await repository.addHabitProgress(habitId, "2026-09-07", 1);
+  expect(await repository.getHabitStatistics(habitId, "2026-09-07")).toEqual({
+    current: 1,
+    longest: 1,
+    total: 1,
+  });
+});
+
 test("past scheduled days can be completed and undone, but future days cannot", async () => {
   now = atNoonUtc("2026-09-01");
   const habitId = await repository.createHabit(dailyHabit);

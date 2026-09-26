@@ -119,6 +119,10 @@ export function useLocalMutations() {
         afterWrite(() => repository.archiveHabit(habitId)),
       completeHabit: (habitId: HabitId, localDay: string) =>
         afterWrite(() => repository.completeHabit(habitId, localDay)),
+      addHabitProgress: (habitId: HabitId, localDay: string, amount: number) =>
+        afterWrite(() =>
+          repository.addHabitProgress(habitId, localDay, amount),
+        ),
       undoCheckin: (habitId: HabitId, localDay: string) =>
         afterWrite(() => repository.undoCheckin(habitId, localDay)),
       updatePreferences: (fields: {
