@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { DateStrip } from "@/components/habits/DateStrip";
 import { HabitCard } from "@/components/habits/HabitCard";
-import { PageLoading, Spinner } from "@/components/ui/Spinner";
+import { PageLoading } from "@/components/ui/Spinner";
 import { useLocalDay } from "@/hooks/use-local-day";
 import {
   formatDayHeading,
@@ -54,7 +54,6 @@ export default function TodayScreen() {
     [weekDayStrings, selectedDay],
   );
   const weekCheckins = useLocalCheckinsForDays(queryDays);
-  const [completingId, setCompletingId] = useState<string | null>(null);
 
   function selectDay(localDay: string) {
     router.setParams(
@@ -107,12 +106,7 @@ export default function TodayScreen() {
   ).length;
 
   async function handleAddProgress(habitId: HabitId, amount: number) {
-    setCompletingId(habitId);
-    try {
-      await addHabitProgress(habitId, selectedDay, amount);
-    } finally {
-      setCompletingId(null);
-    }
+    await addHabitProgress(habitId, selectedDay, amount);
   }
 
   async function handleUndo(habitId: HabitId) {
@@ -197,11 +191,6 @@ export default function TodayScreen() {
           </View>
         )}
       </ScrollView>
-      {completingId ? (
-        <View style={styles.overlay}>
-          <Spinner />
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -228,10 +217,4 @@ const styles = StyleSheet.create({
   empty: { alignItems: "center", gap: 16, paddingVertical: 64 },
   emptyTitle: { fontSize: 20, color: colors.muted, fontFamily: "Georgia" },
   list: { gap: 40 },
-  overlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(245,244,239,0.6)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
 });

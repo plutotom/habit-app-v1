@@ -1,3 +1,4 @@
+import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -9,7 +10,19 @@ import {
   TextInput,
   View,
   type GestureResponderEvent,
+  type LayoutChangeEvent,
 } from "react-native";
+import Animated, {
+  Easing,
+  FadeIn,
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 
 import { useLocalHabitStatistics } from "@/local/hooks";
 import {
@@ -21,6 +34,17 @@ import type { HabitGoalUnit, HabitId } from "@/local/types";
 import { colors, fonts } from "@/theme";
 
 const HOLD_DURATION_MS = 2000;
+const HOLD_TICKS: { at: number; style: Haptics.ImpactFeedbackStyle }[] = [
+  { at: 0.25, style: Haptics.ImpactFeedbackStyle.Soft },
+  { at: 0.5, style: Haptics.ImpactFeedbackStyle.Light },
+  { at: 0.75, style: Haptics.ImpactFeedbackStyle.Medium },
+];
+const RIPPLE_HOLD_OPACITY = 0.2;
+const RIPPLE_FLASH_OPACITY = 0.45;
+
+function impact(style: Haptics.ImpactFeedbackStyle) {
+  Haptics.impactAsync(style).catch(() => {});
+}
 
 type HabitCardProps = {
   habitId: HabitId;
@@ -55,7 +79,6 @@ export function HabitCard({
 }: HabitCardProps) {
   const router = useRouter();
   const streak = useLocalHabitStatistics(habitId, todayLocal);
-  const [holdProgress, setHoldProgress] = useState(0);
   const [isHolding, setIsHolding] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isAddingProgress, setIsAddingProgress] = useState(false);
@@ -63,20 +86,44 @@ export function HabitCard({
   const [progressDraft, setProgressDraft] = useState("");
   const [progressError, setProgressError] = useState("");
   const [isUndoing, setIsUndoing] = useState(false);
-  const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const holdStartRef = useRef<number | null>(null);
+  const [rippleSize, setRippleSize] = useState(0);
+  const cardRef = useRef<View>(null);
+  const holdTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const completingRef = useRef(false);
   const mountedRef = useRef(true);
 
-  const clearHold = useCallback(() => {
-    if (holdTimerRef.current) {
-      clearInterval(holdTimerRef.current);
-      holdTimerRef.current = null;
-    }
-    holdStartRef.current = null;
-    setIsHolding(false);
-    setHoldProgress(0);
+  const progressPercent = Math.min(progress / dailyGoal, 1);
+  const holdStep = Math.max(0, Math.min(1 / dailyGoal, 1 - progressPercent));
+
+  const hold = useSharedValue(0);
+  const rippleOpacity = useSharedValue(0);
+  const rippleX = useSharedValue(0);
+  const rippleY = useSharedValue(0);
+  const cardScale = useSharedValue(1);
+  const fill = useSharedValue(progressPercent);
+
+  useEffect(() => {
+    fill.set(
+      withTiming(progressPercent, {
+        duration: 500,
+        easing: Easing.out(Easing.cubic),
+      }),
+    );
+  }, [fill, progressPercent]);
+
+  const clearTimers = useCallback(() => {
+    holdTimersRef.current.forEach(clearTimeout);
+    holdTimersRef.current = [];
   }, []);
+
+  const clearHold = useCallback(() => {
+    clearTimers();
+    setIsHolding(false);
+    cancelAnimation(hold);
+    hold.set(withTiming(0, { duration: 280, easing: Easing.out(Easing.quad) }));
+    rippleOpacity.set(withTiming(0, { duration: 280 }));
+    cardScale.set(withSpring(1, { damping: 14, stiffness: 220 }));
+  }, [clearTimers, hold, rippleOpacity, cardScale]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -85,64 +132,133 @@ export function HabitCard({
     });
     return () => {
       mountedRef.current = false;
-      if (holdTimerRef.current) clearInterval(holdTimerRef.current);
+      clearTimers();
       subscription.remove();
     };
-  }, [clearHold]);
+  }, [clearHold, clearTimers]);
 
-  const startHold = useCallback(() => {
-    if (done || completingRef.current || !canComplete) return;
-    clearHold();
-    holdStartRef.current = Date.now();
-    setIsHolding(true);
-    setHoldProgress(0);
-    holdTimerRef.current = setInterval(() => {
-      if (!holdStartRef.current) return;
-      const elapsed = Date.now() - holdStartRef.current;
-      const holdFraction = Math.min(elapsed / HOLD_DURATION_MS, 1);
-      setHoldProgress(holdFraction);
-      if (holdFraction >= 1) {
-        if (holdTimerRef.current) {
-          clearInterval(holdTimerRef.current);
-          holdTimerRef.current = null;
-        }
-        setIsCompleting(true);
-        completingRef.current = true;
-        void onAddProgress(1)
-          .then(() => {
-            if (mountedRef.current && progress + 1 >= dailyGoal)
-              router.push({
-                pathname: "/habits/[habitId]/completed",
-                params: { habitId, day: localDay },
-              });
-          })
-          .catch(() => {
-            if (mountedRef.current)
-              Alert.alert(
-                "Couldn't save",
-                "Couldn’t save on this phone. Please try again.",
-              );
-          })
-          .finally(() => {
-            completingRef.current = false;
-            if (mountedRef.current) {
-              setIsCompleting(false);
-              clearHold();
-            }
+  const playCompletionBurst = useCallback(() => {
+    impact(Haptics.ImpactFeedbackStyle.Heavy);
+    rippleOpacity.set(
+      withSequence(
+        withTiming(RIPPLE_FLASH_OPACITY, { duration: 140 }),
+        withTiming(0, { duration: 650, easing: Easing.out(Easing.quad) }),
+      ),
+    );
+    hold.set(withDelay(650, withTiming(0, { duration: 300 })));
+    cardScale.set(
+      withSequence(
+        withTiming(1.035, { duration: 140, easing: Easing.out(Easing.quad) }),
+        withSpring(1, { damping: 10, stiffness: 180 }),
+      ),
+    );
+  }, [rippleOpacity, hold, cardScale]);
+
+  const completeHold = useCallback(() => {
+    clearTimers();
+    setIsHolding(false);
+    setIsCompleting(true);
+    completingRef.current = true;
+    playCompletionBurst();
+    void onAddProgress(1)
+      .then(() => {
+        if (mountedRef.current && progress + 1 >= dailyGoal)
+          router.push({
+            pathname: "/habits/[habitId]/completed",
+            params: { habitId, day: localDay },
           });
-      }
-    }, 16);
+      })
+      .catch(() => {
+        if (mountedRef.current)
+          Alert.alert(
+            "Couldn't save",
+            "Couldn’t save on this phone. Please try again.",
+          );
+      })
+      .finally(() => {
+        completingRef.current = false;
+        if (mountedRef.current) setIsCompleting(false);
+      });
   }, [
-    done,
-    canComplete,
-    dailyGoal,
-    habitId,
-    localDay,
+    clearTimers,
+    playCompletionBurst,
     onAddProgress,
     progress,
+    dailyGoal,
     router,
-    clearHold,
+    habitId,
+    localDay,
   ]);
+
+  const startHold = useCallback(
+    (event?: GestureResponderEvent) => {
+      if (done || completingRef.current || !canComplete) return;
+      clearTimers();
+      setIsHolding(true);
+
+      const pageX = event?.nativeEvent.pageX;
+      const pageY = event?.nativeEvent.pageY;
+      if (pageX !== undefined && pageY !== undefined) {
+        cardRef.current?.measureInWindow((x, y) => {
+          rippleX.set(pageX - x);
+          rippleY.set(pageY - y);
+        });
+      }
+
+      impact(Haptics.ImpactFeedbackStyle.Light);
+      cancelAnimation(hold);
+      hold.set(0);
+      hold.set(
+        withTiming(1, { duration: HOLD_DURATION_MS, easing: Easing.linear }),
+      );
+      rippleOpacity.set(withTiming(RIPPLE_HOLD_OPACITY, { duration: 120 }));
+      cardScale.set(withSpring(0.975, { damping: 18, stiffness: 240 }));
+
+      holdTimersRef.current = [
+        ...HOLD_TICKS.map(({ at, style }) =>
+          setTimeout(() => impact(style), HOLD_DURATION_MS * at),
+        ),
+        setTimeout(completeHold, HOLD_DURATION_MS),
+      ];
+    },
+    [
+      done,
+      canComplete,
+      clearTimers,
+      hold,
+      rippleOpacity,
+      rippleX,
+      rippleY,
+      cardScale,
+      completeHold,
+    ],
+  );
+
+  function handleCardLayout(event: LayoutChangeEvent) {
+    const { width, height } = event.nativeEvent.layout;
+    setRippleSize(Math.ceil(Math.hypot(width, height) * 2));
+  }
+
+  const cardAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: cardScale.value }],
+  }));
+
+  const rippleAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: rippleOpacity.value,
+    transform: [
+      { translateX: rippleX.value - rippleSize / 2 },
+      { translateY: rippleY.value - rippleSize / 2 },
+      { scale: hold.value },
+    ],
+  }));
+
+  const fillAnimatedStyle = useAnimatedStyle(() => ({
+    width: `${fill.value * 100}%`,
+  }));
+
+  const previewAnimatedStyle = useAnimatedStyle(() => ({
+    width: `${Math.min(fill.value + hold.value * holdStep, 1) * 100}%`,
+  }));
 
   function openProgressInput(e: GestureResponderEvent) {
     e.stopPropagation();
@@ -206,7 +322,6 @@ export function HabitCard({
 
   const streakCount = streak?.current ?? "…";
   const oneUnitLabel = formatGoalUnit(goalUnit, 1, customUnit);
-  const progressPercent = Math.min(progress / dailyGoal, 1);
 
   return (
     <View style={styles.wrap}>
@@ -214,142 +329,166 @@ export function HabitCard({
         <Text style={styles.streakIcon}>⚡</Text>
         <Text style={styles.streakCount}>{streakCount}</Text>
       </View>
-      <Pressable
-        onPressIn={() => {
-          if (canComplete && !done) startHold();
-        }}
-        onPressOut={() => {
-          if (canComplete && !done && !isCompleting) clearHold();
-        }}
-        disabled={!canComplete || done}
-        style={[styles.card, done && styles.cardDone]}
-      >
-        <View style={styles.actions}>
-          <Pressable
-            onPress={() =>
-              router.push({
-                pathname: "/habits/[habitId]",
-                params: { habitId },
-              })
-            }
-            style={styles.pill}
-          >
-            <Text style={styles.pillText}>Details</Text>
-          </Pressable>
-          <Pressable
-            onPress={() =>
-              router.push({
-                pathname: "/habits/[habitId]/edit",
-                params: { habitId },
-              })
-            }
-            style={styles.pill}
-          >
-            <Text style={styles.pillText}>Edit</Text>
-          </Pressable>
-        </View>
-        <View style={styles.body}>
-          <Text style={styles.title}>{title}</Text>
-          {description ? (
-            <>
-              <Text style={styles.want}>I want to become</Text>
-              <Text style={styles.title}>{description}</Text>
-            </>
+      <Animated.View style={cardAnimatedStyle}>
+        <Pressable
+          ref={cardRef}
+          onLayout={handleCardLayout}
+          onPressIn={(event) => {
+            if (canComplete && !done) startHold(event);
+          }}
+          onPressOut={() => {
+            if (canComplete && !done && !completingRef.current) clearHold();
+          }}
+          disabled={!canComplete || done}
+          style={[styles.card, done && styles.cardDone]}
+        >
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.ripple,
+              {
+                width: rippleSize,
+                height: rippleSize,
+                borderRadius: rippleSize / 2,
+              },
+              rippleAnimatedStyle,
+            ]}
+          />
+          <View style={styles.actions}>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/habits/[habitId]",
+                  params: { habitId },
+                })
+              }
+              style={styles.pill}
+            >
+              <Text style={styles.pillText}>Details</Text>
+            </Pressable>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/habits/[habitId]/edit",
+                  params: { habitId },
+                })
+              }
+              style={styles.pill}
+            >
+              <Text style={styles.pillText}>Edit</Text>
+            </Pressable>
+          </View>
+          <View style={styles.body}>
+            <Text style={styles.title}>{title}</Text>
+            {description ? (
+              <>
+                <Text style={styles.want}>I want to become</Text>
+                <Text style={styles.title}>{description}</Text>
+              </>
+            ) : null}
+          </View>
+          {done ? (
+            <Animated.View
+              entering={FadeIn.duration(350)}
+              style={styles.doneBlock}
+            >
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>Completed</Text>
+              </View>
+              <Text style={styles.progressSummary}>
+                {formatGoal(progress, goalUnit, customUnit)} goal
+              </Text>
+              {canComplete ? (
+                <Pressable onPress={handleUndo} disabled={isUndoing}>
+                  <Text style={styles.undo}>
+                    {isUndoing ? "Undoing…" : "Undo"}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </Animated.View>
           ) : null}
-        </View>
-        {done ? (
-          <View style={styles.doneBlock}>
-            <View style={styles.pill}>
-              <Text style={styles.pillText}>Completed</Text>
-            </View>
-            <Text style={styles.progressSummary}>
-              {formatGoal(progress, goalUnit, customUnit)} goal
-            </Text>
-            {canComplete ? (
-              <Pressable onPress={handleUndo} disabled={isUndoing}>
-                <Text style={styles.undo}>
-                  {isUndoing ? "Undoing…" : "Undo"}
+          {!done ? (
+            <View style={styles.progressBlock}>
+              <View style={styles.progressHeader}>
+                <Text style={styles.progressText}>
+                  {formatGoalNumber(progress)} / {formatGoalNumber(dailyGoal)}{" "}
+                  {formatGoalUnit(goalUnit, dailyGoal, customUnit)}
                 </Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-        {!done ? (
-          <View style={styles.progressBlock}>
-            <View style={styles.progressHeader}>
-              <Text style={styles.progressText}>
-                {formatGoalNumber(progress)} / {formatGoalNumber(dailyGoal)}{" "}
-                {formatGoalUnit(goalUnit, dailyGoal, customUnit)}
-              </Text>
-              <Text style={styles.progressPercent}>
-                {Math.round(progressPercent * 100)}%
-              </Text>
-            </View>
-            <View style={styles.progressTrack}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${progressPercent * 100}%` },
-                ]}
-              />
-            </View>
-            {canComplete ? (
-              <View style={styles.progressActions}>
-                <Pressable
-                  accessibilityLabel="Log a specific amount"
-                  onPressIn={(e) => e.stopPropagation()}
-                  onPress={openProgressInput}
-                  disabled={isAddingProgress}
-                  style={styles.logButton}
-                >
-                  <Text style={styles.logButtonText}>
-                    {showProgressInput ? "Close" : "Log amount"}
-                  </Text>
-                </Pressable>
-                <Text style={styles.hintInline}>
-                  {isHolding
-                    ? `Keep holding… ${Math.round(holdProgress * 100)}%`
-                    : isCompleting
-                      ? "Saving…"
-                      : `Hold to add 1 ${oneUnitLabel}`}
+                <Text style={styles.progressPercent}>
+                  {Math.round(progressPercent * 100)}%
                 </Text>
               </View>
-            ) : null}
-            {showProgressInput && canComplete ? (
-              <View style={styles.progressEntry}>
-                <TextInput
-                  value={progressDraft}
-                  onChangeText={setProgressDraft}
-                  keyboardType="decimal-pad"
-                  placeholder={`e.g. ${formatGoalNumber(dailyGoal)}`}
-                  placeholderTextColor={colors.muted}
-                  style={styles.progressInput}
+              <View style={styles.progressTrack}>
+                <Animated.View
+                  style={[styles.progressPreview, previewAnimatedStyle]}
                 />
-                <Pressable
-                  accessibilityLabel="Add progress"
-                  onPressIn={(e) => e.stopPropagation()}
-                  onPress={submitProgress}
-                  disabled={isAddingProgress}
-                  style={[
-                    styles.addProgress,
-                    isAddingProgress && styles.disabled,
-                  ]}
-                >
-                  <Text style={styles.addProgressText}>
-                    {isAddingProgress ? "Adding…" : "Add"}
-                  </Text>
-                </Pressable>
+                <Animated.View
+                  style={[styles.progressFill, fillAnimatedStyle]}
+                />
               </View>
-            ) : null}
-            {progressError ? (
-              <Text style={styles.progressError}>{progressError}</Text>
-            ) : null}
-          </View>
-        ) : null}
-        {!done && !canComplete ? (
-          <Text style={styles.hint}>Not completed</Text>
-        ) : null}
-      </Pressable>
+              {canComplete ? (
+                <View style={styles.progressActions}>
+                  <Pressable
+                    accessibilityLabel="Log a specific amount"
+                    onPressIn={(e) => e.stopPropagation()}
+                    onPress={openProgressInput}
+                    disabled={isAddingProgress}
+                    style={styles.logButton}
+                  >
+                    <Text style={styles.logButtonText}>
+                      {showProgressInput ? "Close" : "Log amount"}
+                    </Text>
+                  </Pressable>
+                  <Text
+                    style={[
+                      styles.hintInline,
+                      (isHolding || isCompleting) && styles.hintActive,
+                    ]}
+                  >
+                    {isCompleting
+                      ? "Nice!"
+                      : isHolding
+                        ? "Keep holding…"
+                        : `Hold to add 1 ${oneUnitLabel}`}
+                  </Text>
+                </View>
+              ) : null}
+              {showProgressInput && canComplete ? (
+                <View style={styles.progressEntry}>
+                  <TextInput
+                    value={progressDraft}
+                    onChangeText={setProgressDraft}
+                    keyboardType="decimal-pad"
+                    placeholder={`e.g. ${formatGoalNumber(dailyGoal)}`}
+                    placeholderTextColor={colors.muted}
+                    style={styles.progressInput}
+                  />
+                  <Pressable
+                    accessibilityLabel="Add progress"
+                    onPressIn={(e) => e.stopPropagation()}
+                    onPress={submitProgress}
+                    disabled={isAddingProgress}
+                    style={[
+                      styles.addProgress,
+                      isAddingProgress && styles.disabled,
+                    ]}
+                  >
+                    <Text style={styles.addProgressText}>
+                      {isAddingProgress ? "Adding…" : "Add"}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {progressError ? (
+                <Text style={styles.progressError}>{progressError}</Text>
+              ) : null}
+            </View>
+          ) : null}
+          {!done && !canComplete ? (
+            <Text style={styles.hint}>Not completed</Text>
+          ) : null}
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }
@@ -381,6 +520,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
   cardDone: { opacity: 0.7 },
+  ripple: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    backgroundColor: colors.accentOrange,
+  },
   progressSummary: { fontSize: 13, color: colors.muted },
   progressBlock: { marginTop: 36, gap: 10 },
   progressHeader: {
@@ -397,9 +542,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.pill,
   },
   progressFill: {
-    height: "100%",
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
     borderRadius: 999,
     backgroundColor: colors.accentOrange,
+  },
+  progressPreview: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 999,
+    backgroundColor: colors.accentOrange,
+    opacity: 0.35,
   },
   progressActions: {
     flexDirection: "row",
@@ -415,6 +572,7 @@ const styles = StyleSheet.create({
   },
   logButtonText: { fontSize: 12, fontWeight: "600", color: colors.white },
   hintInline: { flex: 1, fontSize: 11, color: colors.muted },
+  hintActive: { fontWeight: "600", color: colors.foreground },
   progressEntry: { flexDirection: "row", gap: 8, marginTop: 2 },
   progressInput: {
     flex: 1,
@@ -473,12 +631,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 12,
     color: colors.muted,
-  },
-  holding: {
-    marginTop: 40,
-    textAlign: "center",
-    fontSize: 12,
-    fontWeight: "500",
-    color: colors.accentOrange,
   },
 });

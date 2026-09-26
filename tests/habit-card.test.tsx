@@ -12,6 +12,41 @@ vi.mock("expo-router", () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock("@/local/hooks", () => ({
   useLocalHabitStatistics: () => ({ current: 1, longest: 1, total: 1 }),
 }));
+vi.mock("expo-haptics", () => ({
+  impactAsync: () => Promise.resolve(),
+  ImpactFeedbackStyle: {
+    Light: "light",
+    Medium: "medium",
+    Heavy: "heavy",
+    Soft: "soft",
+  },
+}));
+vi.mock("react-native-reanimated", async () => {
+  const { useState } = await import("react");
+  const identity = (value: unknown) => value;
+  const easing = () => identity;
+  return {
+    default: { View: "div" },
+    Easing: { linear: identity, quad: identity, cubic: identity, out: easing },
+    FadeIn: { duration: () => undefined },
+    cancelAnimation: () => {},
+    useAnimatedStyle: () => ({}),
+    useSharedValue: (initial: unknown) =>
+      useState(() => {
+        let value = initial;
+        return {
+          get: () => value,
+          set: (next: unknown) => {
+            value = next;
+          },
+        };
+      })[0],
+    withDelay: (_delay: number, value: unknown) => value,
+    withSequence: (...values: unknown[]) => values.at(-1),
+    withSpring: identity,
+    withTiming: identity,
+  };
+});
 vi.mock("react-native", () => ({
   Pressable: "button",
   Text: "span",
